@@ -33,6 +33,10 @@ machine_learning_deployment/
 │
 ├── tests/
 │
+├── .github/
+│   └── workflows/
+│       └── ci.yml
+│
 ├── .gitignore
 ├── README.md
 └── requirements.txt
