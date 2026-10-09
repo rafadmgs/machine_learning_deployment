@@ -40,3 +40,45 @@ machine_learning_deployment/
 ├── .gitignore
 ├── README.md
 └── requirements.txt
+
+## Installation and Setup
+
+### Prerequisites
+
+- Python 3.12 or higher
+- Git
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/rafadmgs/machine_learning_deployment.git
+cd machine_learning_deployment
+```
+
+### 2. Create and activate a virtual environment
+
+**Windows (PowerShell):**
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+**Linux / macOS:**
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+### 3. Install dependencies
+
+```bash
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+### 4. Run the tests
+
+```bash
+python -m pytest
