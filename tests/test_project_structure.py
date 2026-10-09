@@ -11,7 +11,6 @@ def test_project_structure():
         "data/processed",
         "notebooks",
         "output",
-        "presentation",
         "src",
         "tests",
     ]
