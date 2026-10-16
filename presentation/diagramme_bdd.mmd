@@ -1,0 +1,22 @@
+﻿erDiagram
+    EMPLOYEES o|--o{ PREDICTION_INPUTS : "peut etre associe"
+    PREDICTION_INPUTS ||--o{ PREDICTION_OUTPUTS : "genere"
+
+    EMPLOYEES {
+        int id_employee PK
+    }
+
+    PREDICTION_INPUTS {
+        int id PK
+        int employee_id FK
+        text input_data
+        datetime created_at
+    }
+
+    PREDICTION_OUTPUTS {
+        int id PK
+        int prediction_input_id FK
+        string prediction
+        float probability
+        datetime created_at
+    }
