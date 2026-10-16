@@ -17,8 +17,10 @@ from src.schemas import PredictionRequest
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 MODEL_DIR = PROJECT_ROOT / "output" / "models"
 
-model = joblib.load(MODEL_DIR / "lr_optimise.joblib")
-preprocessor = joblib.load(MODEL_DIR / "preprocessor.joblib")
+def load_artifacts():
+    model = joblib.load(MODEL_DIR / "lr_optimise.joblib")
+    preprocessor = joblib.load(MODEL_DIR / "preprocessor.joblib")
+    return model, preprocessor
 
 app = FastAPI(
     title="HR Analytics - Employee Attrition Prediction",
@@ -49,6 +51,8 @@ def predict(
     db: Session = Depends(get_db),
 ):
     try:
+        model, preprocessor = load_artifacts()
+
         input_data = request.model_dump()
 
         input_df = pd.DataFrame([input_data])

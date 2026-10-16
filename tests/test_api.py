@@ -7,6 +7,27 @@ from src.database import get_db
 from src.main import app
 from src.models import PredictionInput, PredictionOutput
 
+class FakePreprocessor:
+    """Simule le prétraitement des données."""
+
+    def transform(self, input_df):
+        return [[0]]
+
+    def get_feature_names_out(self):
+        return ["feature"]
+
+
+class FakeModel:
+    """Simule le modèle de prédiction."""
+
+    classes_ = ["Non", "Oui"]
+
+    def predict(self, transformed_df):
+        return ["Oui"]
+
+    def predict_proba(self, transformed_df):
+        return [[0.2, 0.8]]
+
 
 class FakeDB:
     """Simule une session SQLAlchemy sans accès à Neon."""
@@ -72,7 +93,15 @@ def test_predict_rejects_invalid_field_type():
     assert response.status_code == 422
 
 
-def test_predict_success():
+def test_predict_success(monkeypatch):
+    from src import main
+
+    monkeypatch.setattr(
+        main,
+        "load_artifacts",
+        lambda: (FakeModel(), FakePreprocessor()),
+    )
+
     fake_db = FakeDB()
 
     def override_get_db():
@@ -134,7 +163,15 @@ def test_predict_success():
     assert saved_output.prediction_input_id == saved_input.id
 
 
-def test_predict_rolls_back_on_database_error():
+def test_predict_rolls_back_on_database_error(monkeypatch):
+    from src import main
+
+    monkeypatch.setattr(
+        main,
+        "load_artifacts",
+        lambda: (FakeModel(), FakePreprocessor()),
+    )
+    
     fake_db = FakeDB()
 
     def failing_commit():
