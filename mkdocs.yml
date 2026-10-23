@@ -1,0 +1,14 @@
+﻿
+site_name: Documentation technique — HR Analytics
+docs_dir: docs
+
+theme:
+  name: readthedocs
+
+nav:
+  - Accueil: index.md
+  - Architecture et choix techniques: architecture.md
+  - Traçabilité des prédictions: tracabilite_predictions.md
+  - Documentation technique du modèle: documentation_modele.md
+  - Guide d'utilisation de l'API: guide_api.md
+  - Protocole de maintenance: protocole_maintenance.md
