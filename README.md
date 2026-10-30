@@ -2,19 +2,19 @@
 
 Projet de Data Science consacré au développement, à l'évaluation et au déploiement d'un modèle de Machine Learning pour la prédiction de l'attrition des employés.
 
-## Présentation du projet
+## 1. Présentation du projet
 
 Ce projet vise à transformer un modèle de prédiction de l'attrition des employés de l'entreprise TechNova Partners en une application exploitable, en suivant une démarche structurée et reproductible.
 
 Il couvre :
+- la préparation des données ;
+- l'entraînement et l'évaluation du modèle ;
+- le développement d'une API avec FastAPI ;
+- l'intégration d'une base de données PostgreSQL ;
+- la traçabilité des prédictions ;
+- les tests automatisés et l'intégration continue.
 
-- la préparation des données,
-- l'entraînement et l'évaluation du modèle,
--  la mise en place d'une API,
-- l'intégration d'une base de données PostgreSQL,
--  les tests automatisés et l'intégration continue.
-
-## Objectifs
+## 2. Objectifs
 
 - Développer et évaluer des modèles de Machine Learning.
 - Structurer le projet selon les bonnes pratiques du développement logiciel.
@@ -23,7 +23,7 @@ Il couvre :
 - Assurer la traçabilité des prédictions.
 - Améliorer la reproductibilité et la maintenabilité du projet.
 
-## Structure du projet
+## 3. Structure du projet
 
 ```text
 machine_learning_deployment/
@@ -56,26 +56,24 @@ machine_learning_deployment/
 ├── .gitignore
 ├── README.md
 └── requirements.txt
+```
 
-Les données, les artefacts du modèle et les fichiers de configuration locaux ne sont pas nécessairement versionnés dans Git. Leur disponibilité doit être vérifiée avant l'exécution de l'application.
-
-## Installation et configuration
+## 4. Installation et configuration
 
 ### Prérequis
 
-- Python 3.12 ou version ultérieure
+- Python 3.12
 - Git
 - PostgreSQL
-- Les données traitées et les artefacts du modèle nécessaires à l'exécution de l'API
 
-### 1. Cloner le dépôt
+### 4.1. Cloner le dépôt
 
 ```bash
 git clone https://github.com/rafadmgs/machine_learning_deployment.git
 cd machine_learning_deployment
 ```
 
-### 2. Créer et activer un environnement virtuel
+### 4.2. Créer et activer un environnement virtuel
 
 **Windows — PowerShell :**
 
@@ -91,44 +89,58 @@ python3 -m venv .venv
 source .venv/bin/activate
 ```
 
-### 3. Installer les dépendances
+### 4.3. Installer les dépendances
 
 ```bash
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### 4. Configurer la connexion à PostgreSQL
+Les principales dépendances sont :
+- pandas, numpy et scikit-learn pour le traitement des données et le Machine Learning ;
+- FastAPI et Pydantic pour l'API et la validation des données ;
+- SQLAlchemy et psycopg pour l'accès à PostgreSQL ;
+- pytest et pytest-cov pour les tests et la couverture du code ;
+- joblib pour le chargement des artefacts du modèle.
+
+Les versions des dépendances directes sont précisées dans `requirements.txt`.
+
+### 4.4. Configurer PostgreSQL
 
 La connexion à la base de données est définie à l'aide de la variable d'environnement `DATABASE_URL`.
 
-Créer un fichier `.env` à la racine du projet et y définir cette variable avec les paramètres de connexion de l'environnement local :
+Créer un fichier `.env` à la racine du projet :
 
 ```dotenv
 DATABASE_URL=postgresql+psycopg://utilisateur:mot_de_passe@localhost:5432/nom_base
 ```
 
-Remplacer les valeurs d'exemple par celles de votre environnement. Le fichier `.env` contient des informations sensibles et ne doit pas être publié dans Git.
+Remplacer les valeurs d'exemple par les paramètres de votre environnement local.
 
-La base de données doit être accessible et les tables doivent être créées avant l'utilisation des fonctionnalités qui enregistrent des données.
+Le fichier `.env` contient des informations sensibles et ne doit pas être publié dans Git.
 
-### 5. Exécuter les tests
+### 4.5. Préparer les données et les artefacts
 
-```bash
-python -m pytest -v
-```
+Les deux artefacts nécessaires à la prédiction sont versionnés dans le dépôt :
 
-Les tests vérifient plusieurs composants du projet, notamment les endpoints de l'API, la validation des entrées, la gestion des erreurs, la configuration de la base de données, l'importation des employés et le chargement des artefacts du modèle.
+- `output/models/lr_optimise.joblib` : modèle entraîné ;
+- `output/models/preprocessor.joblib` : préprocesseur des données.
 
-## E4 — Base de données et traçabilité des prédictions
+Le fichier de données traité `data/processed/df_central.csv`, utilisé pour l'importation des employés, n'est pas versionné dans le dépôt Git.
 
-### Architecture et choix techniques
+Il doit être obtenu à partir du projet de préparation des données (P4) et placé dans le répertoire `data/processed/` avant l'exécution du script d'importation.
+
+Le fichier `.gitkeep` permet de conserver la structure des répertoires dont les données ne sont pas versionnées.
+
+## 5. E4 — Base de données et traçabilité des prédictions
+
+### 5.1. Architecture et choix techniques
 
 L'application utilise FastAPI pour exposer le modèle de Machine Learning et PostgreSQL pour conserver les données nécessaires à son fonctionnement et assurer la traçabilité des prédictions.
 
-La base de données sépare les données des employés, les entrées transmises au modèle et les résultats produits. Cette organisation permet de relier chaque résultat aux données qui l'ont généré.
+La base de données sépare les données des employés, les entrées transmises au modèle et les résultats produits.
 
-### Structure de la base de données
+### 5.2. Structure de la base de données
 
 | Table | Rôle |
 |---|---|
@@ -136,21 +148,46 @@ La base de données sépare les données des employés, les entrées transmises 
 | `prediction_inputs` | Enregistre les données d'entrée envoyées au modèle au format JSON, ainsi que leur date de création. |
 | `prediction_outputs` | Enregistre la prédiction, la probabilité associée, la référence à l'entrée correspondante et la date de création. |
 
-La table `prediction_inputs` possède un identifiant unique. La table `prediction_outputs` utilise la clé étrangère `prediction_input_id` pour référencer l'entrée à l'origine du résultat.
+La table `prediction_outputs` utilise la clé étrangère `prediction_input_id` pour référencer l'entrée à l'origine du résultat.
 
 Le champ `employee_id` de `prediction_inputs` est nullable : une prédiction peut donc être enregistrée sans être associée directement à un employé existant.
 
 Le schéma relationnel est représenté dans `presentation/diagramme_bdd.mmd`.
 
-### Importation des données
+### 5.3. Création des tables
 
-Le jeu de données des employés est importé depuis le fichier traité `data/processed/df_central.csv`.
+Après avoir configuré PostgreSQL et la variable `DATABASE_URL`, exécuter :
 
-Le script `src/import_employees.py` vérifie notamment la présence du fichier, la compatibilité des colonnes, les identifiants dupliqués, les identifiants manquants et les autres valeurs manquantes.
+```bash
+python -m src.create_tables
+```
 
-Le jeu de données utilisé pour cette étape contient 1 470 employés. Le script interrompt l'importation si la table `employees` contient déjà des enregistrements, afin d'éviter une réimportation involontaire.
+### 5.4. Importation des employés
 
-### Traçabilité des prédictions
+Le jeu de données des employés est importé depuis :
+
+```text
+data/processed/df_central.csv
+```
+
+Le script `src/import_employees.py` vérifie notamment :
+- la présence du fichier ;
+- la compatibilité des colonnes ;
+- les identifiants dupliqués ;
+- les identifiants manquants ;
+- les autres valeurs manquantes.
+
+Le jeu de données utilisé pour cette étape contient 1 470 employés.
+
+Pour lancer l'importation :
+
+```bash
+python -m src.import_employees
+```
+
+Le script interrompt l'importation si la table `employees` contient déjà des enregistrements, afin d'éviter une réimportation involontaire.
+
+### 5.5. Traçabilité des prédictions
 
 Lorsqu'une requête de prédiction est traitée par l'API :
 
@@ -163,15 +200,9 @@ Lorsqu'une requête de prédiction est traitée par l'API :
 
 En cas d'erreur pendant le traitement, la transaction est annulée à l'aide de `rollback()`.
 
-### Sécurité et configuration
+## 6. E5 — Développement de l'API
 
-La connexion à PostgreSQL est configurée à l'aide de la variable d'environnement `DATABASE_URL`, définie dans le fichier local `.env`.
-
-Le fichier `.env` et les artefacts locaux du modèle ne doivent pas être versionnés dans Git. Les identifiants de connexion ne doivent jamais être intégrés au code source ni publiés dans le dépôt.
-
-Pour un déploiement en production, il est recommandé d'utiliser un compte de base de données disposant uniquement des privilèges nécessaires, de protéger les secrets et de limiter l'accès aux données personnelles.
-
-### Lancer l'API
+### 6.1. Lancer l'API
 
 Depuis la racine du projet, après avoir configuré l'environnement, la base de données et les artefacts nécessaires, lancer :
 
@@ -179,19 +210,19 @@ Depuis la racine du projet, après avoir configuré l'environnement, la base de 
 python -m uvicorn src.main:app --reload
 ```
 
-La documentation interactive de l'API est accessible à l'adresse suivante :
+L'API est alors accessible à l'adresse :
+
+`http://127.0.0.1:8000`
+
+La documentation interactive est disponible à :
 
 `http://127.0.0.1:8000/docs`
 
-Pour consulter le schéma OpenAPI :
+Le schéma OpenAPI est disponible à :
 
 `http://127.0.0.1:8000/openapi.json`
 
-## Documentation de l'API
-
-L'API REST est développée avec FastAPI et permet de prédire l'attrition des employés à partir de leurs caractéristiques professionnelles et personnelles.
-
-### Endpoints disponibles
+### 6.2. Endpoints disponibles
 
 | Méthode | Endpoint | Description |
 |---|---|---|
@@ -199,7 +230,7 @@ L'API REST est développée avec FastAPI et permet de prédire l'attrition des e
 | `GET` | `/health` | Retourne le statut de l'API. |
 | `POST` | `/predict` | Reçoit les caractéristiques d'un employé, calcule une prédiction et enregistre les données d'entrée et le résultat dans PostgreSQL. |
 
-### Fonctionnement de la prédiction
+### 6.3. Fonctionnement de la prédiction
 
 L'endpoint `POST /predict` suit les étapes suivantes :
 
@@ -211,11 +242,13 @@ L'endpoint `POST /predict` suit les étapes suivantes :
 6. Enregistrement du résultat dans `prediction_outputs`.
 7. Validation de la transaction PostgreSQL et retour du résultat au client.
 
-En cas d'erreur pendant le traitement, la transaction est annulée et l'API retourne une erreur HTTP 500 avec un message générique. Les données invalides sont rejetées lors de la validation de la requête, avant l'exécution de la logique de prédiction.
+En cas d'erreur pendant le traitement, la transaction est annulée et l'API retourne une erreur HTTP 500 avec un message générique.
 
-### Format de la requête
+Les données invalides sont rejetées lors de la validation de la requête, avant l'exécution de la logique de prédiction, avec une réponse HTTP 422.
 
-L'endpoint `POST /predict` attend un objet JSON contenant les 25 champs définis dans le schéma `PredictionRequest`. Tous les champs sont obligatoires et les champs supplémentaires sont refusés.
+### 6.4. Format de la requête
+
+L'endpoint `POST /predict` attend un objet JSON contenant les 25 champs définis dans le schéma `PredictionRequest`.
 
 Exemple de requête :
 
@@ -251,9 +284,9 @@ Exemple de requête :
 
 Les valeurs numériques doivent respecter les limites définies dans `src/schemas.py`. Les champs catégoriels doivent utiliser exactement l'une des valeurs autorisées par le schéma.
 
-Une requête contenant des données invalides, des champs manquants ou des champs supplémentaires est rejetée par FastAPI avec une réponse HTTP 422.
+Les champs manquants, les données invalides et les champs supplémentaires sont rejetés par FastAPI avec une réponse HTTP 422.
 
-### Format de la réponse
+### 6.5. Format de la réponse
 
 Une réponse réussie contient les champs suivants :
 
@@ -262,7 +295,7 @@ Une réponse réussie contient les champs suivants :
 - `probability` : probabilité associée à la classe prédite ;
 - `message` : message décrivant le résultat, soit un départ prédit, soit un maintien prédit.
 
-Exemple illustratif de réponse :
+Exemple illustratif :
 
 ```json
 {
@@ -275,18 +308,15 @@ Exemple illustratif de réponse :
 
 Les valeurs de cet exemple sont illustratives : le résultat réel dépend des données transmises au modèle et de la prédiction calculée.
 
-## Documentation technique du modèle
+## 7. Documentation technique du modèle
 
-### Modèle retenu
+### 7.1. Modèle retenu
 
-Le modèle retenu est une régression logistique optimisée à l'aide de `RandomizedSearchCV`. Il est enregistré dans `output/models/lr_optimise.joblib`.
+Le modèle retenu est une régression logistique optimisée à l'aide de `RandomizedSearchCV`.
 
-Le modèle est constitué d'un pipeline comprenant les étapes suivantes :
+Le modèle est enregistré dans `output/models/lr_optimise.joblib`.
 
-1. **StandardScaler** : standardisation des variables numériques après prétraitement.
-2. **LogisticRegression** : classification des employés en deux catégories : `Oui` (attrition) et `Non` (absence d'attrition).
-
-Les principaux hyperparamètres du modèle sont :
+Les principaux hyperparamètres sont :
 
 | Paramètre | Valeur |
 |---|---|
@@ -295,9 +325,9 @@ Les principaux hyperparamètres du modèle sont :
 | `class_weight` | `balanced` |
 | `max_iter` | `5000` |
 
-Le prétraitement des données est assuré par le fichier `output/models/preprocessor.joblib`, qui utilise un `ColumnTransformer`. Il transforme les données d'entrée en 46 variables. Le notebook P4 confirme que les noms et l'ordre des variables produites par le préprocesseur correspondent à ceux attendus par le modèle.
+Le prétraitement des données est assuré par `output/models/preprocessor.joblib`, qui utilise un `ColumnTransformer` et transforme les données d'entrée en 46 variables.
 
-### Performances du modèle
+### 7.2. Performances du modèle
 
 Les métriques suivantes proviennent de l'évaluation du modèle optimisé sur le jeu de test du projet P4, composé de 294 observations, dont 47 cas d'attrition (`Oui`) et 247 cas sans attrition (`Non`).
 
@@ -313,40 +343,81 @@ Le F1-score moyen obtenu lors de la validation croisée est de **0,5069**.
 
 Le rappel de 0,702 indique que le modèle identifie environ 70 % des cas d'attrition présents dans le jeu de test. En contrepartie, la précision de 0,418 montre qu'une proportion importante des prédictions positives est incorrecte.
 
-L'accuracy doit être interprétée avec prudence en raison du déséquilibre entre les classes. Le modèle constitue un outil d'aide à l'analyse et ne doit pas être utilisé seul pour prendre des décisions concernant les employés.
+L'accuracy doit être interprétée avec prudence en raison du déséquilibre entre les classes.
 
-### Limites du modèle
+Le modèle constitue un outil d'aide à l'analyse et ne doit pas être utilisé seul pour prendre des décisions concernant les employés.
 
-- Les performances mesurées dépendent des données utilisées pour l'entraînement et l'évaluation.
-- Les résultats peuvent varier selon la population étudiée et l'évolution des facteurs associés à l'attrition.
-- Les faux positifs et les faux négatifs doivent être pris en compte dans l'interprétation des prédictions.
-- Les prédictions ne démontrent pas de relation causale et ne doivent pas remplacer une analyse humaine.
-- Les métriques présentées correspondent à l'évaluation réalisée dans P4 ; elles ne constituent pas, à elles seules, une validation de bout en bout de l'API P5.
+## 8. Tests automatisés et couverture du code
 
-### Maintenance et suivi du modèle
+Les tests automatisés sont réalisés avec Pytest.
 
-Pour maintenir la solution, les actions suivantes sont recommandées :
+Les fichiers de tests sont regroupés dans le répertoire `tests/` :
 
-1. **Surveiller les performances** : réévaluer périodiquement le modèle à l'aide de données récentes et de métriques adaptées à la classe `Oui`.
-2. **Contrôler les données** : vérifier la qualité des données d'entrée, les valeurs manquantes, les catégories et la compatibilité des variables.
-3. **Détecter les évolutions** : rechercher les changements dans la distribution des données et dans la fréquence de l'attrition.
-4. **Réentraîner si nécessaire** : comparer tout nouveau modèle au modèle actuel sur un protocole d'évaluation documenté avant son remplacement.
-5. **Versionner les artefacts** : conserver la traçabilité du modèle, du préprocesseur, des données d'entraînement et des métriques associées.
-6. **Valider avant déploiement** : exécuter les tests automatisés et vérifier le fonctionnement de l'API et de la connexion à PostgreSQL avant toute mise à jour en production.
+- `test_api.py`
+- `test_create_tables.py`
+- `test_database_config.py`
+- `test_import_employees.py`
+- `test_model_artifacts.py`
+- `test_project_structure.py`
+
+### Exécuter les tests
+
+```bash
+python -m pytest -v
+```
+
+### Générer le rapport de couverture
+
+```bash
+python -m pytest --cov=src --cov-report=term-missing --cov-report=html --cov-fail-under=100
+```
+
+Le rapport détaillé est généré dans le répertoire `htmlcov/`. Ouvrir `htmlcov/index.html` dans un navigateur pour consulter le résultat.
+
+### Résultats obtenus
+
+Dernière exécution locale :
+
+- **24 tests réussis** ;
+- **186 instructions analysées** ;
+- **100 % de couverture du code source (`src/`)** ;
+- aucune instruction non couverte.
+
+La couverture mesure l'exécution des instructions du code pendant les tests. Certains tests utilisent des mocks pour isoler les composants : ce résultat ne constitue donc pas, à lui seul, une validation de bout en bout avec une instance PostgreSQL réelle.
+
+## 9. Intégration continue — GitHub Actions
+
+Le projet contient un workflow GitHub Actions dans `.github/workflows/ci.yml`.
+
+Le workflow :
+- récupère le code du dépôt ;
+- configure Python 3.12 ;
+- installe les dépendances ;
+- exécute les tests automatisés.
+
+Il est déclenché lors des événements `push` sur les branches configurées et lors des `pull_request` vers `main`.
+
+Ce workflow correspond à une intégration continue (CI). Il automatise les tests, mais ne réalise pas de déploiement automatique de l'API.
+
+Le résultat de l'exécution du workflow doit être vérifié dans GitHub Actions.
+
+## 10. Sécurité et limites
+
+- Le fichier `.env` ne doit jamais être publié dans Git.
+- Les identifiants de connexion à PostgreSQL doivent rester confidentiels.
+- Les données personnelles des employés doivent être protégées.
+- Le fichier `data/processed/df_central.csv` doit être obtenu séparément à partir du projet P4.
+- Le fonctionnement avec une instance PostgreSQL réelle doit être vérifié dans l'environnement de livraison.
+- Les tests avec mocks ne remplacent pas les tests d'intégration.
+- Les métriques du modèle doivent être réévaluées périodiquement sur des données récentes.
+
+## 11. Maintenance et pistes d'amélioration
+
+1. Surveiller les performances du modèle à l'aide de données récentes et de métriques adaptées à la classe `Oui`.
+2. Contrôler la qualité des données d'entrée et leur compatibilité avec le préprocesseur.
+3. Détecter les évolutions dans la distribution des données et dans la fréquence de l'attrition.
+4. Définir une procédure de réentraînement et d'évaluation avant le remplacement du modèle.
+5. Versionner les artefacts et conserver la traçabilité des modèles utilisés.
+6. Renforcer la gestion des secrets et la protection des données avant tout déploiement en production.
 
 Tout remplacement du modèle ou du préprocesseur doit être accompagné d'une vérification de compatibilité des variables et d'une nouvelle évaluation des performances.
-
-## Intégration continue
-
-Le projet contient un workflow GitHub Actions dans `.github/workflows/ci.yml`. Ce workflow installe les dépendances Python et exécute la suite de tests lors des événements configurés dans le dépôt.
-
-Le résultat de l'exécution du workflow doit être vérifié dans GitHub Actions avant de conclure que la validation continue est opérationnelle.
-
-## Limites et pistes d'amélioration
-
-- Documenter la procédure complète de génération ou d'obtention des données traitées et des artefacts du modèle.
-- Vérifier le fonctionnement avec une instance PostgreSQL réelle.
-- Vérifier le résultat du workflow GitHub Actions.
-- Envisager un verrouillage des versions des dépendances pour améliorer la reproductibilité.
-- Définir une procédure de réentraînement, d'évaluation et de remplacement du modèle.
-- Renforcer la gestion des secrets et la protection des données avant tout déploiement en production.
