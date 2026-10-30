@@ -23,3 +23,17 @@ def test_database_url_missing_raises_runtime_error():
     assert result.returncode != 0
     assert "RuntimeError" in result.stderr
     assert "DATABASE_URL" in result.stderr
+
+def test_database_url_missing_is_covered(monkeypatch):
+    import importlib
+    import os
+    import pytest
+    import src.database as database
+
+    monkeypatch.setenv("DATABASE_URL", "")
+
+    with pytest.raises(
+        RuntimeError,
+        match="DATABASE_URL não encontrada"
+    ):
+        importlib.reload(database)

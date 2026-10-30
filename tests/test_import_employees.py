@@ -3,7 +3,10 @@ import pandas as pd
 import pytest
 
 from src import import_employees
+import runpy
+import sys
 
+from pathlib import Path
 
 @pytest.fixture
 def csv_environment(tmp_path, monkeypatch):
@@ -249,4 +252,98 @@ def test_main_imports_employees_successfully(
     import_employees.main()
 
     assert len(fake_session.added_records) == 2
+    assert fake_session.committed is True
+
+
+
+def test_script_execution_with_mocked_dependencies(
+    monkeypatch
+):
+    import runpy
+    import sqlalchemy
+    import sqlalchemy.orm
+    from pathlib import Path
+    from src.models import Employee
+
+    script_path = Path(import_employees.__file__)
+
+    # Cria um DataFrame com as colunas reais do modelo.
+    columns = [
+        column.name
+        for column in Employee.__table__.columns
+    ]
+
+    records = {
+        column: [999999 if column == "id_employee" else 1]
+        for column in columns
+    }
+
+    dataframe = pd.DataFrame(records)
+
+    # Simula a leitura do CSV.
+    monkeypatch.setattr(
+        pd,
+        "read_csv",
+        lambda path: dataframe,
+    )
+
+    # Simula a existência do arquivo CSV.
+    original_exists = Path.exists
+
+    def fake_exists(path):
+        if str(path).endswith("df_central.csv"):
+            return True
+        return original_exists(path)
+
+    monkeypatch.setattr(Path, "exists", fake_exists)
+
+    # Simula as colunas existentes no PostgreSQL.
+    class FakeInspector:
+        def get_columns(self, table):
+            return [{"name": column} for column in columns]
+
+    monkeypatch.setattr(
+        sqlalchemy,
+        "inspect",
+        lambda engine: FakeInspector(),
+    )
+
+    # Simula a sessão do banco.
+    class FakeSession:
+        def __init__(self):
+            self.added_records = []
+            self.committed = False
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def scalar(self, query):
+            if not self.committed:
+                return 0
+            return len(self.added_records)
+
+        def add_all(self, records):
+            self.added_records.extend(records)
+
+        def commit(self):
+            self.committed = True
+
+    fake_session = FakeSession()
+
+    monkeypatch.setattr(
+        sqlalchemy.orm,
+        "Session",
+        lambda engine: fake_session,
+    )
+
+    # Executa o arquivo original como script.
+    runpy.run_path(
+        str(script_path),
+        run_name="__main__",
+    )
+
+    assert len(fake_session.added_records) == 1
     assert fake_session.committed is True
