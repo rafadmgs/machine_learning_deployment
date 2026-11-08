@@ -9,6 +9,12 @@ from sqlalchemy import exc
 from sqlalchemy import exc
 from sqlalchemy.orm import Session
 
+import os
+import secrets
+
+from fastapi import Depends, FastAPI, HTTPException
+from fastapi.security import APIKeyHeader
+
 from src.database import get_db
 from src.models import PredictionInput, PredictionOutput
 from src.schemas import PredictionRequest
@@ -16,6 +22,31 @@ from src.schemas import PredictionRequest
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 MODEL_DIR = PROJECT_ROOT / "output" / "models"
+
+API_KEY = os.getenv("API_KEY")
+
+api_key_header = APIKeyHeader(
+    name="X-API-Key",
+    auto_error=False,
+)
+
+
+def verify_api_key(api_key: str = Depends(api_key_header)):
+    """Vérifie la clé API envoyée dans la requête."""
+
+    if not API_KEY:
+        raise HTTPException(
+            status_code=500,
+            detail="La clé API n'est pas configurée.",
+        )
+
+    if not api_key or not secrets.compare_digest(api_key, API_KEY):
+        raise HTTPException(
+            status_code=401,
+            detail="Clé API invalide ou manquante.",
+        )
+
+    return api_key
 
 def load_artifacts():
     model = joblib.load(MODEL_DIR / "lr_optimise.joblib")
@@ -49,6 +80,7 @@ def health_check():
 def predict(
     request: PredictionRequest,
     db: Session = Depends(get_db),
+    api_key: str = Depends(verify_api_key),
 ):
     try:
         model, preprocessor = load_artifacts()
