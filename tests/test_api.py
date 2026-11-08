@@ -96,6 +96,17 @@ def payload():
 
 
 @pytest.fixture
+def api_key(monkeypatch):
+    """Configure une clé API de test."""
+
+    from src import main
+
+    monkeypatch.setattr(main, "API_KEY", "test-api-key")
+
+    return {"X-API-Key": "test-api-key"}
+
+
+@pytest.fixture
 def fake_db():
     """Fournit une session de base de données simulée."""
 
@@ -139,23 +150,59 @@ def test_health_endpoint():
     assert response.json() == {"status": "ok"}
 
 
-def test_predict_rejects_empty_body():
-    response = client.post("/predict", json={})
+def test_predict_rejects_missing_api_key(payload, api_key):
+    response = client.post("/predict", json=payload)
 
-    assert response.status_code == 422
+    assert response.status_code == 401
+    assert response.json()["detail"] == (
+        "Clé API invalide ou manquante."
+    )
 
 
-def test_predict_rejects_invalid_field_type():
+def test_predict_rejects_invalid_api_key(payload, api_key):
     response = client.post(
         "/predict",
-        json={"age": "idade_invalida"},
+        json=payload,
+        headers={"X-API-Key": "wrong-api-key"},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == (
+        "Clé API invalide ou manquante."
+    )
+
+
+def test_predict_rejects_empty_body(api_key):
+    response = client.post(
+        "/predict",
+        json={},
+        headers=api_key,
     )
 
     assert response.status_code == 422
 
 
-def test_predict_success(payload, fake_db, fake_artifacts):
-    response = client.post("/predict", json=payload)
+def test_predict_rejects_invalid_field_type(api_key):
+    response = client.post(
+        "/predict",
+        json={"age": "idade_invalida"},
+        headers=api_key,
+    )
+
+    assert response.status_code == 422
+
+
+def test_predict_success(
+    payload,
+    fake_db,
+    fake_artifacts,
+    api_key,
+):
+    response = client.post(
+        "/predict",
+        json=payload,
+        headers=api_key,
+    )
 
     assert response.status_code == 200, response.text
 
@@ -182,13 +229,18 @@ def test_predict_rolls_back_on_database_error(
     payload,
     fake_db,
     fake_artifacts,
+    api_key,
 ):
     def failing_commit():
         raise RuntimeError("database failure")
 
     fake_db.commit = failing_commit
 
-    response = client.post("/predict", json=payload)
+    response = client.post(
+        "/predict",
+        json=payload,
+        headers=api_key,
+    )
 
     assert response.status_code == 500
     assert response.json()["detail"] == (
@@ -202,6 +254,7 @@ def test_predict_returns_500_when_artifacts_fail_to_load(
     payload,
     fake_db,
     monkeypatch,
+    api_key,
 ):
     from src import main
 
@@ -214,7 +267,11 @@ def test_predict_returns_500_when_artifacts_fail_to_load(
         failing_load_artifacts,
     )
 
-    response = client.post("/predict", json=payload)
+    response = client.post(
+        "/predict",
+        json=payload,
+        headers=api_key,
+    )
 
     assert response.status_code == 500
     assert response.json()["detail"] == (
@@ -223,7 +280,6 @@ def test_predict_returns_500_when_artifacts_fail_to_load(
     assert fake_db.rolled_back is True
     assert fake_db.committed is False
     assert fake_db.added_objects == []
-
 
 
 def test_load_artifacts(monkeypatch):
