@@ -1,22 +1,18 @@
 
 import json
+import os
+import secrets
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import joblib
 import pandas as pd
-from fastapi import Depends, FastAPI, HTTPException
-from sqlalchemy import exc
-from sqlalchemy import exc
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.security import APIKeyHeader
 from sqlalchemy.orm import Session
 
-import os
-import secrets
-
-from fastapi import Depends, FastAPI, HTTPException
-from fastapi.security import APIKeyHeader
-
 from src.database import get_db
-from src.models import PredictionInput, PredictionOutput
+from src.models import Employee, PredictionInput, PredictionOutput
 from src.schemas import PredictionRequest
 
 
@@ -48,10 +44,24 @@ def verify_api_key(api_key: str = Depends(api_key_header)):
 
     return api_key
 
+
 def load_artifacts():
+    """Charge le modèle et le préprocesseur."""
+
     model = joblib.load(MODEL_DIR / "lr_optimise.joblib")
     preprocessor = joblib.load(MODEL_DIR / "preprocessor.joblib")
+
     return model, preprocessor
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Charge les artefacts au démarrage de l'API."""
+
+    app.state.model, app.state.preprocessor = load_artifacts()
+
+    yield
+
 
 app = FastAPI(
     title="HR Analytics - Employee Attrition Prediction",
@@ -60,6 +70,7 @@ app = FastAPI(
         "à partir d'un modèle de Machine Learning."
     ),
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 
@@ -79,13 +90,29 @@ def health_check():
 @app.post("/predict")
 def predict(
     request: PredictionRequest,
+    request_api: Request,
     db: Session = Depends(get_db),
     api_key: str = Depends(verify_api_key),
 ):
     try:
-        model, preprocessor = load_artifacts()
+        # Rechercher l'employé dans la base de données
+        employee = db.get(Employee, request.id_employee)
 
-        input_data = request.model_dump()
+        if employee is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Employé introuvable.",
+            )
+
+        # Réutiliser les artefacts chargés au démarrage de l'API
+        model = request_api.app.state.model
+        preprocessor = request_api.app.state.preprocessor
+
+        # Récupérer uniquement les variables attendues par le P4
+        input_data = {
+            column: getattr(employee, column)
+            for column in preprocessor.feature_names_in_
+        }
 
         input_df = pd.DataFrame([input_data])
         transformed_data = preprocessor.transform(input_df)
@@ -106,14 +133,15 @@ def predict(
             probabilities[classes.index(prediction)]
         )
 
-        # Enregistrer les données d'entrée
+        # Enregistrer les données d'entrée liées à l'employé
         prediction_input = PredictionInput(
-            input_data=json.dumps(input_data, ensure_ascii=False)
+            employee_id=employee.id_employee,
+            input_data=json.dumps(input_data, ensure_ascii=False),
         )
         db.add(prediction_input)
         db.flush()
 
-        # Enregistrer le résultat
+        # Enregistrer le résultat de la prédiction
         prediction_output = PredictionOutput(
             prediction_input_id=prediction_input.id,
             prediction=prediction,
@@ -123,6 +151,7 @@ def predict(
         db.commit()
 
         return {
+            "employee_id": employee.id_employee,
             "prediction_id": prediction_output.id,
             "prediction": prediction,
             "probability": probability,
@@ -133,9 +162,13 @@ def predict(
             ),
         }
 
+    except HTTPException:
+        db.rollback()
+        raise
+
     except Exception as exc:
-            db.rollback()
-            raise HTTPException(
-                status_code=500,
-                detail="Une erreur interne est survenue lors de la prédiction.",
-            ) from exc
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Une erreur interne est survenue lors de la prédiction.",
+        ) from exc

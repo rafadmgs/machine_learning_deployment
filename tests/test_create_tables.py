@@ -1,8 +1,9 @@
 
+import subprocess
+import sys
+
 from src import create_tables
 
-import runpy
-import sys
 
 def test_create_tables_calls_metadata_create_all(monkeypatch):
     calls = []
@@ -49,19 +50,18 @@ def test_create_tables_prints_table_names(capsys, monkeypatch):
     for table_name in create_tables.Base.metadata.tables:
         assert f"- {table_name}" in output
 
-def test_script_execution(monkeypatch):
-    monkeypatch.setattr(
-        "src.create_tables.Base.metadata.create_all",
-        lambda bind: None,
+
+def test_script_execution():
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "src.create_tables",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
     )
 
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        ["src.create_tables"],
-    )
-
-    runpy.run_module(
-        "src.create_tables",
-        run_name="__main__",
-    )
+    assert result.returncode == 0, result.stderr
+    assert "Tabelas criadas ou já existentes." in result.stdout
