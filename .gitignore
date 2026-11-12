@@ -156,6 +156,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+.venv-prod-check/
 
 # Spyder project settings
 .spyderproject
@@ -228,3 +229,10 @@ output/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 !output/.gitkeep
+
+# Livrables de présentation - conservés localement
+presentation/*.pptx
+presentation/*.zip
+presentation/**/*.zip
+presentation/**/*.pdf
+presentation/*.pdf
