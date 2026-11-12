@@ -357,13 +357,27 @@ Le champ `id_employee` doit être un entier strictement positif. Les champs manq
 
 Une réponse réussie contient les champs suivants :
 
--   `employee_id` : identifiant de l'employé concerné ;
--   `prediction_id` : identifiant du résultat enregistré dans la base de
-    données ;
--   `prediction` : classe prédite par le modèle ;
--   `probability` : probabilité associée à la classe prédite ;
--   `message` : message décrivant le résultat, soit un départ prédit,
-    soit un maintien prédit.
+- `employee_id` : identifiant de l'employé concerné ;
+- `prediction_id` : identifiant du résultat enregistré dans la base de données ;
+- `prediction` : classe prédite par le modèle (`Oui` ou `Non`) ;
+- `probability` : probabilité associée à la classe prédite, exprimée en pourcentage ;
+- `message` : message décrivant le résultat, soit un départ prédit, soit un maintien prédit ;
+- `inference_time_ms` : durée du prétraitement, de la prédiction et du calcul des facteurs explicatifs, en millisecondes ;
+- `model_version` : version du modèle utilisée pour produire la prédiction ;
+- `explainability` : informations permettant d'interpréter localement la prédiction.
+
+L'objet `explainability` contient :
+
+- `method` : méthode utilisée pour calculer les facteurs explicatifs ;
+- `top_factors` : jusqu'à trois variables ayant les contributions absolues les plus importantes.
+
+Chaque facteur contient :
+
+- `feature` : nom de la variable ;
+- `impact` : sens de la contribution (`positive` ou `negative`) ;
+- `contribution` : contribution calculée à partir de la valeur standardisée de la variable et du coefficient de la régression logistique.
+
+Les contributions sont exprimées sur l'échelle des log-odds. Elles ne représentent ni des points de pourcentage de probabilité, ni une relation causale.
 
 Exemple illustratif :
 
@@ -372,13 +386,29 @@ Exemple illustratif :
   "employee_id": 1,
   "prediction_id": 20,
   "prediction": "Oui",
-  "probability": 0.8443,
-  "message": "Le modèle prédit un départ."
+  "probability": 84.43,
+  "message": "Le modèle prédit un départ.",
+  "inference_time_ms": 12.5,
+  "model_version": "1.0.0",
+  "explainability": {
+    "method": "Régression logistique - contributions locales des coefficients",
+    "top_factors": [
+      {
+        "feature": "satisfaction_environnement",
+        "impact": "positive",
+        "contribution": 0.8241
+      },
+      {
+        "feature": "annees_dans_le_poste_actuel",
+        "impact": "negative",
+        "contribution": -0.5123
+      }
+    ]
+  }
 }
 ```
 
-Les valeurs de cet exemple sont illustratives : le résultat réel dépend
-des données transmises au modèle et de la prédiction calculée.
+Les valeurs de cet exemple sont illustratives : le résultat réel dépend des données de l'employé et de la prédiction calculée. Le temps d'inférence correspond au traitement et à l'inférence du modèle ; il n'inclut pas les opérations d'accès à PostgreSQL.
 
 ## 7. Documentation technique du modèle
 
@@ -463,43 +493,70 @@ Le rapport détaillé est généré dans le répertoire `htmlcov/`. Ouvrir
 
 Dernière exécution locale :
 
--   **29 tests réussis** lors de la dernière exécution locale ;
+-   **33 tests réussis** ;
 -   **0 test en échec** ;
--   durée d'exécution : **23,17 secondes** ;
--   **0 avertissement**.
+-   durée d'exécution : **40,23 secondes** ;
+-   **100 % de couverture du code source**.
 
-Les tests comprennent des tests unitaires, des tests avec dépendances
-simulées (mocks) et un test d'intégration avec une véritable base
-PostgreSQL. Ce dernier vérifie les opérations `INSERT`, `SELECT` et
-`DELETE`, ainsi que les relations entre les tables.
+La couverture concerne les 222 instructions des modules analysés dans `src/` :
 
-## 9. Intégration continue --- GitHub Actions
+| Fichier | Instructions | Couverture |
+|---|---:|---:|
+| `create_tables.py` | 13 | 100 % |
+| `database.py` | 16 | 100 % |
+| `import_employees.py` | 38 | 100 % |
+| `main.py` | 86 | 100 % |
+| `models.py` | 48 | 100 % |
+| `schemas.py` | 21 | 100 % |
+| **Total** | **222** | **100 %** |
+
+Les tests comprennent des tests unitaires, des tests avec dépendances simulées (mocks), des tests de l'API avec les artefacts réels du modèle P4 et des tests d'intégration avec PostgreSQL. Les tests d'intégration vérifient notamment les opérations `INSERT`, `SELECT` et `DELETE`, ainsi que les relations entre les tables.
+
+La couverture à 100 % signifie que toutes les instructions mesurées dans les modules listés ont été exécutées pendant cette campagne de tests. Elle ne garantit pas, à elle seule, l'absence de défauts.
+
+## 9. Intégration continue et déploiement continu --- GitHub Actions
 
 Le projet contient un workflow GitHub Actions dans
 `.github/workflows/ci.yml`.
 
-Le workflow :
+Le workflow automatise les vérifications du projet et le déploiement de
+l'API sur Render selon l'événement déclencheur.
+
+### 9.1. Intégration continue (CI)
+
+Le job de test :
 
 -   récupère le code du dépôt ;
 -   configure Python 3.12 ;
--   installe les dépendances de production depuis `requirements.txt` ;
--   installe séparément `httpx2`, `pytest` et `pytest-cov` ;
+-   installe les dépendances nécessaires à l'application et aux tests ;
+-   configure l'environnement d'exécution avec `APP_ENV=test` ;
 -   récupère `TEST_DATABASE_URL` depuis les GitHub Secrets ;
--   exécute les tests automatisés, y compris le test d'intégration
-    PostgreSQL.
+-   utilise la branche Neon `p5_test` pour les tests d'intégration ;
+-   exécute la suite de tests automatisés.
 
 `TEST_DATABASE_URL` pointe vers la branche Neon `p5_test`, réservée aux
 tests. Elle est distincte de la base utilisée par l'API en production.
 
-Il est déclenché lors des événements `push` sur les branches configurées
-et lors des `pull_request` vers `main`.
+Le workflow est déclenché lors des événements `push` sur les branches
+configurées et lors des `pull_request` vers `main`.
 
-Ce workflow correspond à une intégration continue (CI). Il automatise
-les tests lors des événements `push` et `pull_request` configurés. Le
-déploiement de l'API sur Render à partir de la branche `main` est
-distinct de l'exécution des tests CI.
+### 9.2. Déploiement continu (CD)
 
-Le résultat du workflow doit être vérifié dans GitHub Actions.
+Un job de déploiement distinct est exécuté uniquement lors d'un `push`
+sur la branche `main`, et seulement après la réussite du job de tests.
+
+Ce job déclenche le déploiement du service Render à l'aide du Deploy Hook
+stocké dans le secret GitHub `RENDER_DEPLOY_HOOK_URL`.
+
+Le déploiement n'est donc pas lancé pour les simples `pull_request` ni
+pour les pushes sur les branches de fonctionnalité.
+
+Les secrets utilisés par le workflow sont configurés dans GitHub et ne
+doivent jamais être inscrits directement dans le fichier YAML ou dans le
+code source.
+
+Le résultat de chaque exécution, ainsi que le statut des jobs de test et
+de déploiement, doit être vérifié dans GitHub Actions.
 
 ## 10. Déploiement de l'API sur Render
 
@@ -524,11 +581,12 @@ L'API est accessible à l'adresse :
 
 Les endpoints `/health` et `/docs` ont été vérifiés en ligne. Une
 requête authentifiée sur `/predict` a également été exécutée avec
-succès sur la version précédemment déployée. La nouvelle version de
+succès sur la version précédemment déployée. La version actuelle de
 l'API, qui reçoit uniquement `id_employee` et récupère les variables
 de l'employé depuis PostgreSQL, a été validée localement avec la base
-de production. Son redéploiement sur Render sera effectué après la
-publication des dernières modifications sur la branche `main`.
+de production. Son déploiement sur Render doit être confirmé après la
+publication des dernières modifications sur la branche `main` et la
+réussite du workflow GitHub Actions.
 
 Le plan gratuit de Render peut mettre le service en veille après une
 période d'inactivité. La première requête après cette veille peut donc
