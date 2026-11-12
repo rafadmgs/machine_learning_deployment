@@ -14,7 +14,7 @@ from src.models import Employee, PredictionInput, PredictionOutput
 def postgres_session():
     """Crée une session avec la vraie base PostgreSQL de test."""
 
-    database_url = os.getenv("DATABASE_URL")
+    database_url = os.getenv("TEST_DATABASE_URL")
 
     if not database_url:
         pytest.skip("TEST_DATABASE_URL n'est pas configurée.")
@@ -28,24 +28,19 @@ def postgres_session():
         engine.dispose()
 
 
-def test_postgres_insert_select_delete_and_relations(
-    postgres_session,
-):
+def test_postgres_insert_select_delete_and_relations(postgres_session):
+    """Vérifie les opérations CRUD et les relations dans PostgreSQL."""
+
     session = postgres_session
-
     test_id = str(uuid4())
-
     input_id = None
 
     try:
-        # Vérifier qu'un employé existe dans la base
         employee_id = session.scalar(
             select(Employee.id_employee).limit(1)
         )
-
         assert employee_id is not None
 
-        # INSERT : enregistrer les données d'entrée
         prediction_input = PredictionInput(
             employee_id=employee_id,
             input_data=json.dumps({"test_id": test_id}),
@@ -56,7 +51,6 @@ def test_postgres_insert_select_delete_and_relations(
 
         input_id = prediction_input.id
 
-        # INSERT : enregistrer le résultat lié à l'entrée
         prediction_output = PredictionOutput(
             prediction_input_id=input_id,
             prediction="Oui",
@@ -68,18 +62,15 @@ def test_postgres_insert_select_delete_and_relations(
 
         output_id = prediction_output.id
 
-        # SELECT : vérifier les données et les relations
         result = session.execute(
             select(PredictionInput, PredictionOutput, Employee)
             .join(
                 PredictionOutput,
-                PredictionOutput.prediction_input_id
-                == PredictionInput.id,
+                PredictionOutput.prediction_input_id == PredictionInput.id,
             )
             .join(
                 Employee,
-                Employee.id_employee
-                == PredictionInput.employee_id,
+                Employee.id_employee == PredictionInput.employee_id,
             )
             .where(PredictionInput.id == input_id)
         ).one()
@@ -93,27 +84,22 @@ def test_postgres_insert_select_delete_and_relations(
         assert saved_output.prediction == "Oui"
         assert saved_output.probability == pytest.approx(0.85)
 
-        # DELETE : supprimer les données créées par le test
         session.execute(
             delete(PredictionOutput).where(
                 PredictionOutput.id == output_id
             )
         )
-
         session.execute(
             delete(PredictionInput).where(
                 PredictionInput.id == input_id
             )
         )
-
         session.commit()
 
-        # Vérifier que les données ont bien été supprimées
         assert session.get(PredictionInput, input_id) is None
         assert session.get(PredictionOutput, output_id) is None
 
     finally:
-        # Nettoyage de sécurité en cas d'échec du test
         session.rollback()
 
         if input_id is not None:
