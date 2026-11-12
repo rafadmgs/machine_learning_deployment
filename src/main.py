@@ -4,6 +4,7 @@ import os
 import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
+from time import perf_counter
 
 import joblib
 import pandas as pd
@@ -13,13 +14,15 @@ from sqlalchemy.orm import Session
 
 from src.database import get_db
 from src.models import Employee, PredictionInput, PredictionOutput
-from src.schemas import PredictionRequest
+from src.schemas import PredictionRequest, PredictionResponse
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 MODEL_DIR = PROJECT_ROOT / "output" / "models"
 
 API_KEY = os.getenv("API_KEY")
+MODEL_VERSION = "1.0.0"
+TOP_FACTORS_COUNT = 3
 
 api_key_header = APIKeyHeader(
     name="X-API-Key",
@@ -54,6 +57,51 @@ def load_artifacts():
     return model, preprocessor
 
 
+def get_top_factors(model, preprocessor, transformed_data):
+    """
+    Calcule les principales contributions individuelles
+    à partir des coefficients de la régression logistique.
+
+    Une contribution positive favorise la classe Oui.
+    Une contribution négative favorise la classe Non.
+    """
+
+    scaler = model.named_steps["standardscaler"]
+    logistic_model = model.named_steps["logisticregression"]
+
+    scaled_data = scaler.transform(transformed_data)
+
+    coefficients = logistic_model.coef_[0]
+    contributions = scaled_data[0] * coefficients
+
+    feature_names = preprocessor.get_feature_names_out()
+
+    factors = []
+
+    for feature, contribution in zip(feature_names, contributions):
+        feature_name = (
+            feature.replace("nominal__", "")
+            .replace("remainder__", "")
+        )
+
+        factors.append(
+            {
+                "feature": feature_name,
+                "impact": (
+                    "positive" if contribution >= 0 else "negative"
+                ),
+                "contribution": round(float(contribution), 4),
+            }
+        )
+
+    factors.sort(
+        key=lambda item: abs(item["contribution"]),
+        reverse=True,
+    )
+
+    return factors[:TOP_FACTORS_COUNT]
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Charge les artefacts au démarrage de l'API."""
@@ -69,7 +117,7 @@ app = FastAPI(
         "API de prédiction de l'attrition des employés "
         "à partir d'un modèle de Machine Learning."
     ),
-    version="1.0.0",
+    version=MODEL_VERSION,
     lifespan=lifespan,
 )
 
@@ -87,7 +135,10 @@ def health_check():
     return {"status": "ok"}
 
 
-@app.post("/predict")
+@app.post(
+    "/predict",
+    response_model=PredictionResponse,
+)
 def predict(
     request: PredictionRequest,
     request_api: Request,
@@ -104,9 +155,12 @@ def predict(
                 detail="Employé introuvable.",
             )
 
-        # Réutiliser les artefacts chargés au démarrage de l'API
+        # Récupérer les artefacts chargés au démarrage de l'API
         model = request_api.app.state.model
         preprocessor = request_api.app.state.preprocessor
+
+        # Mesurer le temps de prétraitement et d'inférence
+        inference_start = perf_counter()
 
         # Récupérer uniquement les variables attendues par le P4
         input_data = {
@@ -115,9 +169,9 @@ def predict(
         }
 
         input_df = pd.DataFrame([input_data])
+
         transformed_data = preprocessor.transform(input_df)
 
-        # Conserver les noms des variables après le prétraitement
         transformed_df = pd.DataFrame(
             transformed_data,
             columns=preprocessor.get_feature_names_out(),
@@ -129,15 +183,33 @@ def predict(
         # Probabilité associée à la classe prédite
         probabilities = model.predict_proba(transformed_df)[0]
         classes = list(model.classes_)
+
         probability = float(
             probabilities[classes.index(prediction)]
         )
 
+        # Explicabilité individuelle de la prédiction
+        top_factors = get_top_factors(
+            model,
+            preprocessor,
+            transformed_df,
+        )
+
+        # Temps total du prétraitement, de la prédiction
+        # et du calcul des contributions
+        inference_time_ms = (
+            perf_counter() - inference_start
+        ) * 1000
+
         # Enregistrer les données d'entrée liées à l'employé
         prediction_input = PredictionInput(
             employee_id=employee.id_employee,
-            input_data=json.dumps(input_data, ensure_ascii=False),
+            input_data=json.dumps(
+                input_data,
+                ensure_ascii=False,
+            ),
         )
+
         db.add(prediction_input)
         db.flush()
 
@@ -147,6 +219,7 @@ def predict(
             prediction=prediction,
             probability=probability,
         )
+
         db.add(prediction_output)
         db.commit()
 
@@ -154,12 +227,18 @@ def predict(
             "employee_id": employee.id_employee,
             "prediction_id": prediction_output.id,
             "prediction": prediction,
-            "probability": probability,
+            "probability": round(probability * 100, 2),
             "message": (
                 "Le modèle prédit un départ."
                 if prediction == "Oui"
                 else "Le modèle prédit un maintien."
             ),
+            "inference_time_ms": round(inference_time_ms, 2),
+            "model_version": MODEL_VERSION,
+            "explainability": {
+                "method": "Régression logistique - contributions locales des coefficients",
+                "top_factors": top_factors,
+            },
         }
 
     except HTTPException:
@@ -170,5 +249,8 @@ def predict(
         db.rollback()
         raise HTTPException(
             status_code=500,
-            detail="Une erreur interne est survenue lors de la prédiction.",
+            detail=(
+                "Une erreur interne est survenue "
+                "lors de la prédiction."
+            ),
         ) from exc
