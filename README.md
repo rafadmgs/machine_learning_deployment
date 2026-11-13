@@ -1,33 +1,31 @@
 # Déploiement d'un modèle de Machine Learning de prédiction chez TechNova Partners
 
-Projet de Data Science consacré au développement, à l'évaluation et au
-déploiement d'un modèle de Machine Learning pour la prédiction de
-l'attrition des employés.
+Projet de Data Science consacré au développement, à l'évaluation et au déploiement d'un modèle de Machine Learning pour la prédiction de l'attrition des employés.
 
 ## 1. Présentation du projet
 
-Ce projet vise à transformer un modèle de prédiction de l'attrition des
-employés de l'entreprise TechNova Partners en une application
-exploitable, en suivant une démarche structurée et reproductible.
+Ce projet vise à transformer un modèle de prédiction de l'attrition des employés de l'entreprise TechNova Partners en une application exploitable, en suivant une démarche structurée et reproductible.
 
 Il couvre :
 
--   la préparation des données ;
--   l'entraînement et l'évaluation du modèle ;
--   le développement d'une API avec FastAPI ;
--   l'intégration d'une base de données PostgreSQL ;
--   la traçabilité des prédictions ;
--   les tests automatisés et l'intégration continue.
+- la préparation des données ;
+- l'entraînement et l'évaluation du modèle ;
+- le développement d'une API avec FastAPI ;
+- l'intégration d'une base de données PostgreSQL ;
+- la traçabilité des prédictions ;
+- la gestion des évolutions du schéma avec Alembic ;
+- les tests automatisés et l'intégration continue ;
+- le déploiement de l'API.
 
 ## 2. Objectifs
 
--   Développer et évaluer des modèles de Machine Learning.
--   Structurer le projet selon les bonnes pratiques du développement
-    logiciel.
--   Versionner et documenter le code.
--   Exposer le modèle à travers une API.
--   Assurer la traçabilité des prédictions.
--   Améliorer la reproductibilité et la maintenabilité du projet.
+- Développer et évaluer des modèles de Machine Learning.
+- Structurer le projet selon les bonnes pratiques du développement logiciel.
+- Versionner et documenter le code.
+- Exposer le modèle à travers une API.
+- Assurer la traçabilité des prédictions.
+- Gérer l'évolution du schéma de la base de données.
+- Améliorer la reproductibilité et la maintenabilité du projet.
 
 ## 3. Structure du projet
 
@@ -40,6 +38,10 @@ machine_learning_deployment/
 │   ├── raw/
 │   └── processed/
 ├── docs/
+├── migrations/
+│   ├── versions/
+│   │   └── 5e817b511ec1_initial_api_schema.py
+│   └── env.py
 ├── notebooks/
 ├── output/
 │   └── models/
@@ -65,6 +67,7 @@ machine_learning_deployment/
 │   └── test_project_structure.py
 ├── .env.example
 ├── .gitignore
+├── alembic.ini
 ├── mkdocs.yml
 ├── README.md
 ├── requirements.txt
@@ -75,9 +78,9 @@ machine_learning_deployment/
 
 ### Prérequis
 
--   Python 3.12
--   Git
--   PostgreSQL
+- Python 3.12
+- Git
+- PostgreSQL
 
 ### 4.1. Cloner le dépôt
 
@@ -104,22 +107,16 @@ source .venv/bin/activate
 
 ### 4.3. Installer les dépendances
 
-Pour un environnement local de développement, installer les dépendances
-de l'application ainsi que les outils de test, de documentation et de
-travail sur les notebooks :
+Pour un environnement local de développement, installer les dépendances de l'application ainsi que les outils de test, de documentation et de travail sur les notebooks :
 
 ```bash
 python -m pip install --upgrade pip
 pip install -r requirements-dev.txt
 ```
 
-Le fichier `requirements-dev.txt` inclut `requirements.txt` et ajoute
-les dépendances nécessaires au développement, notamment Jupyter,
-Matplotlib, Seaborn, Pytest, pytest-cov et MkDocs.
+Le fichier `requirements-dev.txt` inclut `requirements.txt` et ajoute les dépendances nécessaires au développement, notamment Jupyter, Matplotlib, Seaborn, Pytest, pytest-cov et MkDocs.
 
-Le fichier `requirements.txt` contient uniquement les dépendances
-nécessaires à l'exécution de l'application en production : traitement
-des données et chargement du modèle, API et accès à PostgreSQL.
+Le fichier `requirements.txt` contient les dépendances nécessaires à l'exécution de l'application : traitement des données et chargement du modèle, API et accès à PostgreSQL.
 
 Pour installer uniquement les dépendances de production :
 
@@ -129,54 +126,52 @@ pip install -r requirements.txt
 
 ### 4.4. Configurer PostgreSQL
 
-La connexion à la base de données est définie à l'aide de la variable
-d'environnement `DATABASE_URL`.
+La connexion à la base de données de l'application est définie à l'aide de la variable d'environnement `DATABASE_URL`.
 
 Créer un fichier `.env` à la racine du projet :
 
 ```dotenv
 DATABASE_URL=postgresql+psycopg://utilisateur:mot_de_passe@localhost:5432/nom_base
+TEST_DATABASE_URL=postgresql+psycopg://utilisateur:mot_de_passe@localhost:5432/nom_base_test
 API_KEY=votre_cle_api_secrete
 ```
 
-Remplacer les valeurs d'exemple par les paramètres de votre
-environnement local. La variable `API_KEY` protège l'endpoint de
-prédiction.
+Remplacer les valeurs d'exemple par les paramètres de votre environnement.
 
-Le fichier `.env` contient des informations sensibles et ne doit pas
-être publié dans Git. Le fichier `.env.example` fournit un modèle de
-configuration sans secret réel.
+- `DATABASE_URL` : connexion utilisée par l'application et par Alembic.
+- `TEST_DATABASE_URL` : connexion utilisée par les tests d'intégration PostgreSQL.
+- `API_KEY` : clé utilisée pour protéger l'endpoint de prédiction.
+
+Le fichier `.env` contient des informations sensibles et ne doit pas être publié dans Git. Le fichier `.env.example` fournit un modèle de configuration sans secret réel.
 
 ### 4.5. Préparer les données et les artefacts
 
-Les deux artefacts nécessaires à la prédiction sont versionnés dans le
-dépôt :
+Les deux artefacts nécessaires à la prédiction sont versionnés dans le dépôt :
 
--   `output/models/lr_optimise.joblib` : modèle entraîné ;
--   `output/models/preprocessor.joblib` : préprocesseur des données.
+- `output/models/lr_optimise.joblib` : modèle entraîné ;
+- `output/models/preprocessor.joblib` : préprocesseur des données.
 
-Le fichier de données traité `data/processed/df_central.csv`, utilisé
-pour l'importation des employés, n'est pas versionné dans le dépôt Git.
+Le fichier de données traité `data/processed/df_central.csv`, utilisé pour l'importation des employés, n'est pas versionné dans le dépôt Git.
 
-Il doit être obtenu à partir du projet de préparation des données (P4)
-et placé dans le répertoire `data/processed/` avant l'exécution du
-script d'importation.
+Il doit être obtenu à partir du projet de préparation des données (P4) et placé dans le répertoire `data/processed/` avant l'exécution du script d'importation.
 
-Le fichier `.gitkeep` permet de conserver la structure des répertoires
-dont les données ne sont pas versionnées.
+Le fichier `.gitkeep` permet de conserver la structure des répertoires dont les données ne sont pas versionnées.
 
-## 5. E4 --- Base de données et traçabilité des prédictions
+## 5. E4 — Base de données et traçabilité des prédictions
 
 ### 5.1. Architecture et choix techniques
 
-L'application utilise FastAPI pour exposer le modèle de Machine Learning
-et PostgreSQL pour conserver les données nécessaires à son
-fonctionnement et assurer la traçabilité des prédictions.
+L'application utilise FastAPI pour exposer le modèle de Machine Learning et PostgreSQL pour conserver les données nécessaires à son fonctionnement et assurer la traçabilité des prédictions.
 
-La base de données sépare les données des employés, les entrées
-transmises au modèle et les résultats produits.
+SQLAlchemy est utilisé comme ORM (*Object-Relational Mapping*) pour représenter les tables de la base de données sous forme de modèles Python.
+
+La gestion de l'évolution du schéma des tables de l'API est assurée par Alembic.
+
+La base de données sépare les données des employés, les entrées transmises au modèle et les résultats produits.
 
 ### 5.2. Structure de la base de données
+
+Les trois tables gérées par les modèles SQLAlchemy et les migrations Alembic sont :
 
 | Table | Rôle |
 |---|---|
@@ -184,27 +179,126 @@ transmises au modèle et les résultats produits.
 | `prediction_inputs` | Enregistre les données d'entrée envoyées au modèle au format JSON, ainsi que leur date de création. |
 | `prediction_outputs` | Enregistre la prédiction, la probabilité associée, la référence à l'entrée correspondante et la date de création. |
 
-La table `prediction_outputs` utilise la clé étrangère
-`prediction_input_id` pour référencer l'entrée à l'origine du résultat.
+La table `prediction_outputs` utilise la clé étrangère `prediction_input_id` pour référencer l'entrée à l'origine du résultat.
 
-Le champ `employee_id` de `prediction_inputs` référence l'employé
-concerné par la prédiction. Dans le fonctionnement actuel de l'API, une
-prédiction est associée à un employé existant grâce à son identifiant
-`id_employee`.
+Le champ `employee_id` de `prediction_inputs` référence l'employé concerné par la prédiction. Dans le fonctionnement actuel de l'API, une prédiction est associée à un employé existant grâce à son identifiant `id_employee`.
 
-Le schéma relationnel est représenté dans
-`presentation/diagramme_bdd.mmd`.
+Les trois tables historiques issues du projet P4 sont également présentes dans PostgreSQL :
 
-### 5.3. Création des tables
+- `extrait_sirh` ;
+- `extrait_eval` ;
+- `extrait_sondage`.
 
-Après avoir configuré PostgreSQL et la variable `DATABASE_URL`, exécuter
-:
+Elles sont conservées dans la base de données, mais ne font pas partie du périmètre de gestion des migrations Alembic de l'API.
+
+Cette séparation permet de préserver les tables historiques du P4 tout en gérant l'évolution du schéma des tables utilisées par l'API.
+
+Le schéma relationnel est représenté dans `presentation/diagramme_bdd.mmd`.
+
+### 5.3. Création et évolution du schéma avec Alembic
+
+Alembic est utilisé pour versionner et gérer les évolutions du schéma de la base de données.
+
+La configuration se trouve dans :
+
+- `alembic.ini` : configuration générale d'Alembic ;
+- `migrations/env.py` : connexion à la base de données et configuration des migrations ;
+- `migrations/versions/` : historique des migrations générées.
+
+La migration initiale `5e817b511ec1_initial_api_schema.py` décrit la création des trois tables de l'API :
+
+- `employees` ;
+- `prediction_inputs` ;
+- `prediction_outputs`.
+
+Les migrations sont générées à partir des modèles SQLAlchemy définis dans `src/models.py`.
+
+**Générer une nouvelle migration :**
+
+Après avoir modifié un modèle SQLAlchemy :
+
+```bash
+python -m alembic revision --autogenerate -m "description_de_la_modification"
+```
+
+La migration générée doit être relue avant son application. L'autogénération ne remplace pas la vérification manuelle des opérations proposées.
+
+**Appliquer les migrations :**
+
+```bash
+python -m alembic upgrade head
+```
+
+Cette commande applique les migrations disponibles jusqu'à la dernière révision.
+
+**Consulter la révision actuelle :**
+
+```bash
+python -m alembic current
+```
+
+**Consulter l'historique des migrations :**
+
+```bash
+python -m alembic history
+```
+
+**Vérifier la synchronisation entre les modèles et la base de données :**
+
+```bash
+python -m alembic check
+```
+
+Le résultat attendu lorsque les modèles et le schéma sont synchronisés est :
+
+```text
+No new upgrade operations detected.
+```
+
+**Enregistrement d'une migration dans une base existante :**
+
+Lorsqu'une base contient déjà les tables décrites par une migration, il est possible d'enregistrer la révision correspondante sans réexécuter les opérations de création :
+
+```bash
+python -m alembic stamp head
+```
+
+Cette commande modifie uniquement l'historique des révisions Alembic. Elle ne crée, ne modifie et ne supprime pas les tables.
+
+Elle doit être utilisée uniquement après avoir vérifié que la structure existante correspond bien à la migration concernée.
+
+**Périmètre de gestion :**
+
+Dans la configuration actuelle, Alembic gère les trois tables de l'API (`employees`, `prediction_inputs` et `prediction_outputs`).
+
+Les tables historiques `extrait_sirh`, `extrait_eval` et `extrait_sondage` restent en dehors de ce périmètre.
+
+### 5.4. Création des tables avec SQLAlchemy
+
+Le projet conserve également le script `src/create_tables.py`.
+
+Ce script utilise :
+
+```python
+Base.metadata.create_all(bind=engine)
+```
+
+Il permet de créer les tables déclarées dans les modèles SQLAlchemy lorsqu'elles n'existent pas encore. Il vérifie également que l'environnement est `development` ou `test` avant d'autoriser cette opération.
+
+Pour l'exécuter :
 
 ```bash
 python -m src.create_tables
 ```
 
-### 5.4. Importation des employés
+Ce mécanisme est distinct d'Alembic :
+
+- `create_tables.py` crée les tables manquantes à partir des métadonnées SQLAlchemy ;
+- Alembic versionne les évolutions du schéma et permet de suivre leur historique.
+
+Pour les environnements utilisant les migrations, Alembic constitue le mécanisme de référence pour gérer l'évolution du schéma. Il ne faut pas considérer `create_all()` comme un remplacement du système de migrations.
+
+### 5.5. Importation des employés
 
 Le jeu de données des employés est importé depuis :
 
@@ -228,36 +322,31 @@ Pour lancer l'importation :
 python -m src.import_employees
 ```
 
-Le script interrompt l'importation si la table `employees` contient déjà
-des enregistrements, afin d'éviter une réimportation involontaire.
+Le script interrompt l'importation si la table `employees` contient déjà des enregistrements, afin d'éviter une réimportation involontaire.
 
-### 5.5. Traçabilité des prédictions
+La création ou l'évolution de la structure des tables et l'importation des données sont donc deux opérations distinctes.
+
+### 5.6. Traçabilité des prédictions
 
 Lorsqu'une requête de prédiction est traitée par l'API :
 
-1.  L'identifiant `id_employee` reçu est validé par le schéma
-    `PredictionRequest`.
-2.  L'API recherche l'employé correspondant dans la table `employees`.
-3.  Les 25 variables attendues par le préprocesseur sont récupérées
-    depuis l'enregistrement de cet employé.
-4.  Les données sont transformées et la prédiction est calculée avec
-    le modèle et le préprocesseur chargés au démarrage de l'API.
-5.  Les données utilisées pour la prédiction sont enregistrées dans
-    `prediction_inputs`, avec la référence `employee_id`.
-6.  Le résultat est enregistré dans `prediction_outputs` et relié à
-    son entrée.
-7.  La transaction est validée avec `commit()`.
+1. L'identifiant `id_employee` reçu est validé par le schéma `PredictionRequest`.
+2. L'API recherche l'employé correspondant dans la table `employees`.
+3. Les 25 variables attendues par le préprocesseur sont récupérées depuis l'enregistrement de cet employé.
+4. Les données sont transformées et la prédiction est calculée avec le modèle et le préprocesseur chargés au démarrage de l'API.
+5. Les données utilisées pour la prédiction sont enregistrées dans `prediction_inputs`, avec la référence `employee_id`.
+6. Le résultat est enregistré dans `prediction_outputs` et relié à son entrée.
+7. La transaction est validée avec `commit()`.
 
-Si l'identifiant ne correspond à aucun employé, l'API retourne une
-réponse HTTP `404`. En cas d'erreur pendant le traitement, la transaction
-est annulée à l'aide de `rollback()`.
+Si l'identifiant ne correspond à aucun employé, l'API retourne une réponse HTTP `404`.
 
-## 6. E5 --- Développement de l'API
+En cas d'erreur pendant le traitement, la transaction est annulée à l'aide de `rollback()`.
+
+## 6. E5 — Développement de l'API
 
 ### 6.1. Lancer l'API
 
-Depuis la racine du projet, après avoir configuré l'environnement, la
-base de données et les artefacts nécessaires, lancer :
+Depuis la racine du projet, après avoir configuré l'environnement, la base de données et les artefacts nécessaires, lancer :
 
 ```powershell
 python -m uvicorn src.main:app --reload
@@ -277,18 +366,13 @@ Le schéma OpenAPI est disponible à :
 
 ### 6.2. Authentification par clé API
 
-L'endpoint `POST /predict` est protégé par une clé API transmise dans
-l'en-tête HTTP `X-API-Key`.
+L'endpoint `POST /predict` est protégé par une clé API transmise dans l'en-tête HTTP `X-API-Key`.
 
-La clé attendue est définie dans la variable d'environnement `API_KEY`
-et n'est pas enregistrée directement dans le code source.
+La clé attendue est définie dans la variable d'environnement `API_KEY` et n'est pas enregistrée directement dans le code source.
 
--   Une clé absente ou incorrecte entraîne une réponse HTTP
-    `401 Unauthorized`.
--   Si la clé n'est pas configurée dans l'environnement, l'API retourne
-    une erreur HTTP `500`.
--   Les endpoints `GET /` et `GET /health` restent accessibles sans
-    authentification.
+- Une clé absente ou incorrecte entraîne une réponse HTTP `401 Unauthorized`.
+- Si la clé n'est pas configurée dans l'environnement, l'API retourne une erreur HTTP `500`.
+- Les endpoints `GET /` et `GET /health` restent accessibles sans authentification.
 
 La comparaison de la clé est réalisée avec `secrets.compare_digest()`.
 
@@ -302,38 +386,28 @@ La comparaison de la clé est réalisée avec `secrets.compare_digest()`.
 
 ### 6.4. Fonctionnement de la prédiction
 
-Le modèle `lr_optimise.joblib` et le préprocesseur
-`preprocessor.joblib` sont chargés une seule fois au démarrage de
-l'application, grâce au mécanisme `lifespan` de FastAPI. Ils sont
-conservés dans `app.state` et réutilisés pour chaque requête.
+Le modèle `lr_optimise.joblib` et le préprocesseur `preprocessor.joblib` sont chargés une seule fois au démarrage de l'application, grâce au mécanisme `lifespan` de FastAPI. Ils sont conservés dans `app.state` et réutilisés pour chaque requête.
 
 L'endpoint `POST /predict` suit les étapes suivantes :
 
-1.  Validation de l'identifiant reçu à l'aide du schéma
-    `PredictionRequest`.
-2.  Recherche de l'employé dans la table `employees`.
-3.  Récupération des 25 variables utilisées par le modèle.
-4.  Transformation des données avec le préprocesseur déjà chargé.
-5.  Calcul de la classe prédite et de la probabilité associée.
-6.  Enregistrement des données utilisées dans `prediction_inputs`,
-    avec la clé étrangère `employee_id`.
-7.  Enregistrement du résultat dans `prediction_outputs`.
-8.  Validation de la transaction PostgreSQL et retour du résultat au
-    client.
+1. Validation de l'identifiant reçu à l'aide du schéma `PredictionRequest`.
+2. Recherche de l'employé dans la table `employees`.
+3. Récupération des 25 variables utilisées par le modèle.
+4. Transformation des données avec le préprocesseur déjà chargé.
+5. Calcul de la classe prédite et de la probabilité associée.
+6. Enregistrement des données utilisées dans `prediction_inputs`, avec la clé étrangère `employee_id`.
+7. Enregistrement du résultat dans `prediction_outputs`.
+8. Validation de la transaction PostgreSQL et retour du résultat au client.
 
 Si l'employé n'existe pas, l'API retourne une réponse HTTP `404`.
 
-En cas d'erreur pendant le traitement, la transaction est annulée et
-l'API retourne une erreur HTTP 500 avec un message générique.
+En cas d'erreur pendant le traitement, la transaction est annulée et l'API retourne une erreur HTTP 500 avec un message générique.
 
-Les données invalides sont rejetées lors de la validation de la requête,
-avant l'exécution de la logique de prédiction, avec une réponse HTTP
-422.
+Les données invalides sont rejetées lors de la validation de la requête, avant l'exécution de la logique de prédiction, avec une réponse HTTP `422`.
 
 ### 6.5. Format de la requête
 
-L'endpoint `POST /predict` attend uniquement l'identifiant d'un
-employé déjà enregistré dans la table `employees`.
+L'endpoint `POST /predict` attend uniquement l'identifiant d'un employé déjà enregistré dans la table `employees`.
 
 Exemple de requête :
 
@@ -343,13 +417,9 @@ Exemple de requête :
 }
 ```
 
-L'API récupère ensuite automatiquement les 25 variables nécessaires
-depuis PostgreSQL. Le client n'a donc pas besoin de transmettre les
-caractéristiques de l'employé dans le corps de la requête.
+L'API récupère ensuite automatiquement les 25 variables nécessaires depuis PostgreSQL. Le client n'a donc pas besoin de transmettre les caractéristiques de l'employé dans le corps de la requête.
 
-Si l'identifiant est invalide, manquant ou inférieur ou égal à zéro,
-FastAPI retourne une réponse HTTP `422`. Si l'employé n'existe pas,
-l'API retourne une réponse HTTP `404`.
+Si l'identifiant est invalide, manquant ou inférieur ou égal à zéro, FastAPI retourne une réponse HTTP `422`. Si l'employé n'existe pas, l'API retourne une réponse HTTP `404`.
 
 Le champ `id_employee` doit être un entier strictement positif. Les champs manquants, les identifiants invalides et les champs supplémentaires sont rejetés par FastAPI avec une réponse HTTP `422`.
 
@@ -414,8 +484,7 @@ Les valeurs de cet exemple sont illustratives : le résultat réel dépend des d
 
 ### 7.1. Modèle retenu
 
-Le modèle retenu est une régression logistique optimisée à l'aide de
-`RandomizedSearchCV`.
+Le modèle retenu est une régression logistique optimisée à l'aide de `RandomizedSearchCV`.
 
 Le modèle est enregistré dans `output/models/lr_optimise.joblib`.
 
@@ -428,15 +497,11 @@ Les principaux hyperparamètres sont :
 | `class_weight` | `balanced` |
 | `max_iter` | `5000` |
 
-Le prétraitement des données est assuré par
-`output/models/preprocessor.joblib`, qui utilise un `ColumnTransformer`
-et transforme les données d'entrée en 46 variables.
+Le prétraitement des données est assuré par `output/models/preprocessor.joblib`, qui utilise un `ColumnTransformer` et transforme les données d'entrée en 46 variables.
 
 ### 7.2. Performances du modèle
 
-Les métriques suivantes proviennent de l'évaluation du modèle optimisé
-sur le jeu de test du projet P4, composé de 294 observations, dont 47
-cas d'attrition (`Oui`) et 247 cas sans attrition (`Non`).
+Les métriques suivantes proviennent de l'évaluation du modèle optimisé sur le jeu de test du projet P4, composé de 294 observations, dont 47 cas d'attrition (`Oui`) et 247 cas sans attrition (`Non`).
 
 | Métrique | Résultat |
 |---|---:|
@@ -446,19 +511,13 @@ cas d'attrition (`Oui`) et 247 cas sans attrition (`Non`).
 | F1-score — classe `Oui` | 0,524 |
 | ROC-AUC | 0,814 |
 
-Le F1-score moyen obtenu lors de la validation croisée est de
-**0,5069**.
+Le F1-score moyen obtenu lors de la validation croisée est de **0,5069**.
 
-Le rappel de 0,702 indique que le modèle identifie environ 70 % des cas
-d'attrition présents dans le jeu de test. En contrepartie, la précision
-de 0,418 montre qu'une proportion importante des prédictions positives
-est incorrecte.
+Le rappel de 0,702 indique que le modèle identifie environ 70 % des cas d'attrition présents dans le jeu de test. En contrepartie, la précision de 0,418 montre qu'une proportion importante des prédictions positives est incorrecte.
 
-L'accuracy doit être interprétée avec prudence en raison du déséquilibre
-entre les classes.
+L'accuracy doit être interprétée avec prudence en raison du déséquilibre entre les classes.
 
-Le modèle constitue un outil d'aide à l'analyse et ne doit pas être
-utilisé seul pour prendre des décisions concernant les employés.
+Le modèle constitue un outil d'aide à l'analyse et ne doit pas être utilisé seul pour prendre des décisions concernant les employés.
 
 ## 8. Tests automatisés et couverture du code
 
@@ -466,37 +525,46 @@ Les tests automatisés sont réalisés avec Pytest.
 
 Les fichiers de tests sont regroupés dans le répertoire `tests/` :
 
--   `test_api.py`
--   `test_create_tables.py`
--   `test_database_config.py`
--   `test_database_integration.py`
--   `test_import_employees.py`
--   `test_model_artifacts.py`
--   `test_project_structure.py`
+- `test_api.py`
+- `test_create_tables.py`
+- `test_database_config.py`
+- `test_database_integration.py`
+- `test_import_employees.py`
+- `test_model_artifacts.py`
+- `test_project_structure.py`
 
-### Exécuter les tests
+### 8.1. Exécuter les tests
+
+Depuis la racine du projet, utiliser :
+
+```bash
+python -m pytest
+```
+
+L'utilisation de `python -m pytest` permet d'exécuter Pytest avec l'interpréteur Python de l'environnement virtuel actif et de résoudre correctement les imports du package `src`.
+
+Pour afficher davantage de détails :
 
 ```bash
 python -m pytest -v
 ```
 
-### Générer le rapport de couverture
+### 8.2. Générer le rapport de couverture
 
 ```bash
 python -m pytest --cov=src --cov-report=term-missing --cov-report=html
 ```
 
-Le rapport détaillé est généré dans le répertoire `htmlcov/`. Ouvrir
-`htmlcov/index.html` dans un navigateur pour consulter le résultat.
+Le rapport détaillé est généré dans le répertoire `htmlcov/`. Ouvrir `htmlcov/index.html` dans un navigateur pour consulter le résultat.
 
-### Résultats obtenus
+### 8.3. Résultats obtenus
 
-Dernière exécution locale :
+Dernière campagne locale de tests et de couverture :
 
--   **33 tests réussis** ;
--   **0 test en échec** ;
--   durée d'exécution : **40,23 secondes** ;
--   **100 % de couverture du code source**.
+- **33 tests réussis** ;
+- **0 test en échec** ;
+- durée de la dernière exécution des tests : **42,82 secondes** ;
+- **100 % de couverture du code source**.
 
 La couverture concerne les 222 instructions des modules analysés dans `src/` :
 
@@ -514,83 +582,67 @@ Les tests comprennent des tests unitaires, des tests avec dépendances simulées
 
 La couverture à 100 % signifie que toutes les instructions mesurées dans les modules listés ont été exécutées pendant cette campagne de tests. Elle ne garantit pas, à elle seule, l'absence de défauts.
 
-## 9. Intégration continue et déploiement continu --- GitHub Actions
+## 9. Intégration continue et déploiement continu — GitHub Actions
 
-Le projet contient un workflow GitHub Actions dans
-`.github/workflows/ci.yml`.
+Le projet contient un workflow GitHub Actions dans `.github/workflows/ci.yml`.
 
-Le workflow automatise les vérifications du projet et le déploiement de
-l'API sur Render selon l'événement déclencheur.
+Le workflow automatise les vérifications du projet et le déploiement de l'API sur Render selon l'événement déclencheur.
 
 ### 9.1. Intégration continue (CI)
 
 Le job de test :
 
--   récupère le code du dépôt ;
--   configure Python 3.12 ;
--   installe les dépendances nécessaires à l'application et aux tests ;
--   configure l'environnement d'exécution avec `APP_ENV=test` ;
--   récupère `TEST_DATABASE_URL` depuis les GitHub Secrets ;
--   utilise la branche Neon `p5_test` pour les tests d'intégration ;
--   exécute la suite de tests automatisés.
+- récupère le code du dépôt ;
+- configure Python 3.12 ;
+- installe les dépendances nécessaires à l'application et aux tests ;
+- configure l'environnement d'exécution avec `APP_ENV=test` ;
+- récupère `TEST_DATABASE_URL` depuis les GitHub Secrets ;
+- utilise la branche Neon `p5_test` pour les tests d'intégration ;
+- exécute la suite de tests automatisés.
 
-`TEST_DATABASE_URL` pointe vers la branche Neon `p5_test`, réservée aux
-tests. Elle est distincte de la base utilisée par l'API en production.
+`TEST_DATABASE_URL` pointe vers la branche Neon `p5_test`, réservée aux tests. Elle est distincte de la base utilisée par l'API en production.
 
-Le workflow est déclenché lors des événements `push` sur les branches
-configurées et lors des `pull_request` vers `main`.
+Le workflow est déclenché lors des événements `push` sur les branches configurées et lors des `pull_request` vers `main`.
 
 ### 9.2. Déploiement continu (CD)
 
-Un job de déploiement distinct est exécuté uniquement lors d'un `push`
-sur la branche `main`, et seulement après la réussite du job de tests.
+Un job de déploiement distinct est exécuté uniquement lors d'un `push` sur la branche `main`, et seulement après la réussite du job de tests.
 
-Ce job déclenche le déploiement du service Render à l'aide du Deploy Hook
-stocké dans le secret GitHub `RENDER_DEPLOY_HOOK_URL`.
+Ce job déclenche le déploiement du service Render à l'aide du Deploy Hook stocké dans le secret GitHub `RENDER_DEPLOY_HOOK_URL`.
 
-Le déploiement n'est donc pas lancé pour les simples `pull_request` ni
-pour les pushes sur les branches de fonctionnalité.
+Le déploiement n'est donc pas lancé pour les simples `pull_request` ni pour les pushes sur les branches de fonctionnalité.
 
-Les secrets utilisés par le workflow sont configurés dans GitHub et ne
-doivent jamais être inscrits directement dans le fichier YAML ou dans le
-code source.
+Les secrets utilisés par le workflow sont configurés dans GitHub et ne doivent jamais être inscrits directement dans le fichier YAML ou dans le code source.
 
-Le résultat de chaque exécution, ainsi que le statut des jobs de test et
-de déploiement, doit être vérifié dans GitHub Actions.
+Le résultat de chaque exécution, ainsi que le statut des jobs de test et de déploiement, doit être vérifié dans GitHub Actions.
 
 ## 10. Déploiement de l'API sur Render
 
 L'API FastAPI est déployée sur Render en tant que service Web.
 
--   **Dépôt source :** `rafadmgs/machine_learning_deployment`
--   **Branche déployée :** `main`
--   **Commande de build :** `pip install -r requirements.txt`
--   **Commande de démarrage :**
-    `uvicorn src.main:app --host 0.0.0.0 --port $PORT`
+- **Dépôt source :** `rafadmgs/machine_learning_deployment`
+- **Branche déployée :** `main`
+- **Commande de build :** `pip install -r requirements.txt`
+- **Commande de démarrage :**
 
-Les variables d'environnement sont configurées dans le tableau de bord
-Render :
+```bash
+uvicorn src.main:app --host 0.0.0.0 --port $PORT
+```
 
--   `API_KEY` : clé utilisée pour authentifier les demandes envoyées à
-    `/predict` ;
--   `DATABASE_URL` : URL de connexion à la branche Neon `production`.
+Les variables d'environnement sont configurées dans le tableau de bord Render :
+
+- `API_KEY` : clé utilisée pour authentifier les demandes envoyées à `/predict` ;
+- `DATABASE_URL` : URL de connexion à la branche Neon `production`.
 
 L'API est accessible à l'adresse :
 
 `https://machine-learning-deployment-q0xp.onrender.com`
 
-Les endpoints `/health` et `/docs` ont été vérifiés en ligne. Une
-requête authentifiée sur `/predict` a également été exécutée avec
-succès sur la version précédemment déployée. La version actuelle de
-l'API, qui reçoit uniquement `id_employee` et récupère les variables
-de l'employé depuis PostgreSQL, a été validée localement avec la base
-de production. Son déploiement sur Render doit être confirmé après la
-publication des dernières modifications sur la branche `main` et la
-réussite du workflow GitHub Actions.
+Les endpoints `/health` et `/docs` ont été vérifiés en ligne. Une requête authentifiée sur `/predict` a également été exécutée avec succès sur une version précédemment déployée.
 
-Le plan gratuit de Render peut mettre le service en veille après une
-période d'inactivité. La première requête après cette veille peut donc
-prendre plus de temps.
+La version actuelle de l'API, qui reçoit uniquement `id_employee` et récupère les variables de l'employé depuis PostgreSQL, a été validée localement avec la base de production. Son déploiement sur Render doit être confirmé après la publication des dernières modifications sur la branche `main` et la réussite du workflow GitHub Actions.
+
+Le plan gratuit de Render peut mettre le service en veille après une période d'inactivité. La première requête après cette veille peut donc prendre plus de temps.
 
 ## 11. Sécurité et gestion des accès
 
@@ -612,24 +664,23 @@ Les identifiants de connexion à PostgreSQL et la clé API sont stockés dans de
 
 Les valeurs sensibles ne doivent jamais être publiées dans le dépôt.
 
-### 11.3. Séparation des environnements et des rôles PostgreSQL
+### 11.3. Séparation des environnements PostgreSQL
 
-Les environnements de test et de production utilisent deux branches distinctes de Neon :
+Les environnements de développement, de test et de production sont séparés à l'aide de branches distinctes de Neon.
 
-| Environnement | Branche | Rôle PostgreSQL |
+| Environnement | Configuration | Utilisation |
 |---|---|---|
-| Tests automatisés | `p5_test` | `p5_test_user` |
-| Production | `production` | `neondb_owner` |
+| Développement | `DATABASE_URL` dans `.env` | Développement local de l'API et gestion du schéma |
+| Tests automatisés | `TEST_DATABASE_URL` | Tests d'intégration PostgreSQL |
+| Production | `DATABASE_URL` dans Render | Fonctionnement de l'API déployée |
 
-Le rôle `p5_test_user` a été créé spécifiquement pour les tests automatisés.
+Les branches Neon utilisées dans le projet sont :
 
-Ses permissions sont limitées aux opérations `SELECT`, `INSERT` et `DELETE` sur les tables suivantes :
+- `p5_dev` pour le développement ;
+- `p5_test` pour les tests ;
+- `production` pour l'application déployée.
 
-- `employees`
-- `prediction_inputs`
-- `prediction_outputs`
-
-Les tests d'intégration PostgreSQL du workflow GitHub Actions utilisent ce rôle dédié.
+La connexion locale de test vérifiée pendant le développement utilisait le rôle `neondb_owner`. Le rôle effectivement configuré dans les GitHub Secrets doit être vérifié directement dans les paramètres du workflow avant de documenter un utilisateur spécifique.
 
 En production, l'API hébergée sur Render utilise actuellement le rôle `neondb_owner`. Cette configuration possède des privilèges plus larges que ceux strictement nécessaires à l'application. La création d'un rôle dédié à l'API en production constitue donc une amélioration de sécurité future.
 
@@ -641,19 +692,12 @@ Les prédictions doivent être utilisées comme un outil d'aide à l'analyse et 
 
 ## 12. Maintenance et pistes d'amélioration
 
-1.  Surveiller les performances du modèle à l'aide de données récentes
-    et de métriques adaptées à la classe `Oui`.
-2.  Contrôler la qualité des données d'entrée et leur compatibilité avec
-    le préprocesseur.
-3.  Détecter les évolutions dans la distribution des données et dans la
-    fréquence de l'attrition.
-4.  Définir une procédure de réentraînement et d'évaluation avant le
-    remplacement du modèle.
-5.  Versionner les artefacts et conserver la traçabilité des modèles
-    utilisés.
-6.  Surveiller la disponibilité de l'API déployée et renforcer la
-    protection des données ainsi que la gestion des accès.
+1. Surveiller les performances du modèle à l'aide de données récentes et de métriques adaptées à la classe `Oui`.
+2. Contrôler la qualité des données d'entrée et leur compatibilité avec le préprocesseur.
+3. Détecter les évolutions dans la distribution des données et dans la fréquence de l'attrition.
+4. Définir une procédure de réentraînement et d'évaluation avant le remplacement du modèle.
+5. Versionner les artefacts et conserver la traçabilité des modèles utilisés.
+6. Surveiller la disponibilité de l'API déployée et renforcer la protection des données ainsi que la gestion des accès.
+7. Continuer à versionner les évolutions du schéma de la base de données avec Alembic.
 
-Tout remplacement du modèle ou du préprocesseur doit être accompagné
-d'une vérification de compatibilité des variables et d'une nouvelle
-évaluation des performances.
+Tout remplacement du modèle ou du préprocesseur doit être accompagné d'une vérification de compatibilité des variables et d'une nouvelle évaluation des performances.

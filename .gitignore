@@ -236,3 +236,5 @@ presentation/*.zip
 presentation/**/*.zip
 presentation/**/*.pdf
 presentation/*.pdf
+
+presentation/*.pptm
