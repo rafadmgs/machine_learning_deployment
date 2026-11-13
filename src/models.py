@@ -136,6 +136,18 @@ class PredictionOutput(Base):
         nullable=True,
     )
 
+    # Version du modèle utilisé pour produire la prédiction
+    model_version: Mapped[str] = mapped_column(
+        String,
+        nullable=False,
+    )
+
+    # Temps de prétraitement et d'inférence en millisecondes
+    inference_time_ms: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True,
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),

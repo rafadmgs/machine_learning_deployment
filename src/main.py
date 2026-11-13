@@ -1,5 +1,6 @@
 
 import json
+import logging
 import os
 import secrets
 from contextlib import asynccontextmanager
@@ -23,6 +24,13 @@ MODEL_DIR = PROJECT_ROOT / "output" / "models"
 API_KEY = os.getenv("API_KEY")
 MODEL_VERSION = "1.0.0"
 TOP_FACTORS_COUNT = 3
+
+# La documentation interactive reste disponible en développement,
+# mais elle est désactivée en production.
+APP_ENV = os.getenv("APP_ENV", "development").lower()
+DOCS_URL = "/docs" if APP_ENV != "production" else None
+REDOC_URL = "/redoc" if APP_ENV != "production" else None
+OPENAPI_URL = "/openapi.json" if APP_ENV != "production" else None
 
 api_key_header = APIKeyHeader(
     name="X-API-Key",
@@ -119,15 +127,22 @@ app = FastAPI(
     ),
     version=MODEL_VERSION,
     lifespan=lifespan,
+    docs_url=DOCS_URL,
+    redoc_url=REDOC_URL,
+    openapi_url=OPENAPI_URL,
 )
 
 
 @app.get("/")
 def root():
-    return {
+    response = {
         "message": "HR Analytics API opérationnelle",
-        "docs": "/docs",
     }
+
+    if app.docs_url:
+        response["docs"] = app.docs_url
+
+    return response
 
 
 @app.get("/health")
@@ -213,11 +228,14 @@ def predict(
         db.add(prediction_input)
         db.flush()
 
-        # Enregistrer le résultat de la prédiction
+        # Enregistrer le résultat, la version du modèle
+        # et le temps d'inférence
         prediction_output = PredictionOutput(
             prediction_input_id=prediction_input.id,
             prediction=prediction,
             probability=probability,
+            model_version=MODEL_VERSION,
+            inference_time_ms=round(inference_time_ms, 2),
         )
 
         db.add(prediction_output)
@@ -245,12 +263,16 @@ def predict(
         db.rollback()
         raise
 
-    except Exception as exc:
+    except Exception:
+        logging.exception(
+            "Erreur détaillée lors de la prédiction"
+        )
         db.rollback()
+
         raise HTTPException(
             status_code=500,
             detail=(
                 "Une erreur interne est survenue "
                 "lors de la prédiction."
             ),
-        ) from exc
+        )

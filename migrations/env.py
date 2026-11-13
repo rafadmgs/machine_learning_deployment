@@ -33,12 +33,13 @@ def include_object(object, name, type_, reflected, compare_to):
     return True
 
 
-# Database connection
-DATABASE_URL = os.getenv("DATABASE_URL")
+# Dedicated administrative connection for migrations
+MIGRATION_DATABASE_URL = os.getenv("MIGRATION_DATABASE_URL")
 
-if not DATABASE_URL:
+if not MIGRATION_DATABASE_URL:
     raise RuntimeError(
-        "DATABASE_URL not found. Check the .env file."
+        "MIGRATION_DATABASE_URL not found. "
+        "Check the .env file."
     )
 
 
@@ -46,7 +47,7 @@ def run_migrations_offline() -> None:
     """Run migrations without creating a database connection."""
 
     context.configure(
-        url=DATABASE_URL,
+        url=MIGRATION_DATABASE_URL,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -62,7 +63,7 @@ def run_migrations_online() -> None:
     """Run migrations using a live database connection."""
 
     connectable = create_engine(
-        DATABASE_URL,
+        MIGRATION_DATABASE_URL,
         poolclass=pool.NullPool,
     )
 
