@@ -25,12 +25,10 @@ API_KEY = os.getenv("API_KEY")
 MODEL_VERSION = "1.0.0"
 TOP_FACTORS_COUNT = 3
 
-# La documentation interactive reste disponible en développement,
-# mais elle est désactivée en production.
-APP_ENV = os.getenv("APP_ENV", "development").lower()
-DOCS_URL = "/docs" if APP_ENV != "production" else None
-REDOC_URL = "/redoc" if APP_ENV != "production" else None
-OPENAPI_URL = "/openapi.json" if APP_ENV != "production" else None
+# Documentation available in development and production.
+DOCS_URL = "/docs"
+REDOC_URL = "/redoc"
+OPENAPI_URL = "/openapi.json"
 
 api_key_header = APIKeyHeader(
     name="X-API-Key",
@@ -135,14 +133,10 @@ app = FastAPI(
 
 @app.get("/")
 def root():
-    response = {
+    return {
         "message": "HR Analytics API opérationnelle",
+        "docs": DOCS_URL,
     }
-
-    if app.docs_url:
-        response["docs"] = app.docs_url
-
-    return response
 
 
 @app.get("/health")
