@@ -7,7 +7,6 @@ from src import models
 
 def create_tables():
     """Crée les tables uniquement dans les environnements DEV et TEST."""
-
     app_env = os.getenv("APP_ENV", "").lower()
 
     if app_env not in {"development", "test"}:
@@ -16,7 +15,6 @@ def create_tables():
         )
 
     Base.metadata.create_all(bind=engine)
-
     print("Tabelas criadas ou já existentes.")
 
     for table_name in Base.metadata.tables:

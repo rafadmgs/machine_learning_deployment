@@ -52,10 +52,12 @@ def test_postgres_insert_select_delete_and_relations(postgres_session):
         input_id = prediction_input.id
 
         prediction_output = PredictionOutput(
-            prediction_input_id=input_id,
-            prediction="Oui",
-            probability=0.85,
-        )
+        prediction_input_id=input_id,
+        prediction="Oui",
+        probability=0.85,
+        model_version="test-1.0.0",
+        inference_time_ms=12.5,
+    )
 
         session.add(prediction_output)
         session.commit()

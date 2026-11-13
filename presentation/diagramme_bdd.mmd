@@ -1,9 +1,38 @@
-﻿erDiagram
+﻿
+erDiagram
     EMPLOYEES o|--o{ PREDICTION_INPUTS : "peut etre associe"
     PREDICTION_INPUTS ||--o{ PREDICTION_OUTPUTS : "genere"
 
     EMPLOYEES {
         int id_employee PK
+        int age
+        string genre
+        int revenu_mensuel
+        string statut_marital
+        string departement
+        string poste
+        int nombre_experiences_precedentes
+        int annee_experience_totale
+        int annees_dans_l_entreprise
+        int annees_dans_le_poste_actuel
+        int satisfaction_employee_environnement
+        int note_evaluation_precedente
+        int niveau_hierarchique_poste
+        int satisfaction_employee_nature_travail
+        int satisfaction_employee_equipe
+        int satisfaction_employee_equilibre_pro_perso
+        int note_evaluation_actuelle
+        string heure_supplementaires
+        int augementation_salaire_precedente
+        string a_quitte_l_entreprise
+        int nombre_participation_pee
+        int nb_formations_suivies
+        int distance_domicile_travail
+        int niveau_education
+        string domaine_etude
+        string frequence_deplacement
+        int annees_depuis_la_derniere_promotion
+        int annes_sous_responsable_actuel
     }
 
     PREDICTION_INPUTS {
@@ -18,5 +47,7 @@
         int prediction_input_id FK
         string prediction
         float probability
+        string model_version
+        float inference_time_ms
         datetime created_at
     }
