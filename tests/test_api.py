@@ -5,7 +5,6 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import delete, select
 
-from src.database import SessionLocal
 from src.main import app
 from src.models import Employee, PredictionInput, PredictionOutput
 
@@ -28,22 +27,17 @@ def client(api_key):
 
 
 @pytest.fixture
-def test_employee():
+def test_employee(test_db):
     """Récupère un employé réel dans la base PostgreSQL de test."""
-    db = SessionLocal()
 
-    try:
-        employee = db.execute(
-            select(Employee).limit(1)
-        ).scalars().first()
+    employee = test_db.execute(
+        select(Employee).limit(1)
+    ).scalars().first()
 
-        if employee is None:
-            pytest.skip("Aucun employé disponible dans la base de test.")
+    if employee is None:
+        pytest.skip("Aucun employé disponible dans la base de test.")
 
-        return employee.id_employee
-
-    finally:
-        db.close()
+    return employee.id_employee
 
 
 def test_root_endpoint(client):
@@ -85,7 +79,12 @@ def test_predict_rejects_invalid_api_key(client, test_employee):
         "Clé API invalide ou manquante."
     )
 
-def test_predict_rejects_unconfigured_api_key(client, test_employee, monkeypatch):
+
+def test_predict_rejects_unconfigured_api_key(
+    client,
+    test_employee,
+    monkeypatch,
+):
     from src import main
 
     monkeypatch.setattr(main, "API_KEY", None)
@@ -100,6 +99,7 @@ def test_predict_rejects_unconfigured_api_key(client, test_employee, monkeypatch
     assert response.json()["detail"] == (
         "La clé API n'est pas configurée."
     )
+
 
 def test_predict_rejects_empty_body(client, api_key):
     response = client.post(
@@ -131,19 +131,14 @@ def test_predict_rejects_non_positive_employee_id(client, api_key):
     assert response.status_code == 422
 
 
-def test_predict_rejects_unknown_employee(client, api_key):
+def test_predict_rejects_unknown_employee(client, api_key, test_db):
     """Vérifie le comportement pour un employé inexistant."""
 
-    db = SessionLocal()
-
-    try:
-        employee_id = (
-            db.query(Employee.id_employee)
-            .order_by(Employee.id_employee.desc())
-            .first()[0] + 1000000
-        )
-    finally:
-        db.close()
+    employee_id = (
+        test_db.query(Employee.id_employee)
+        .order_by(Employee.id_employee.desc())
+        .first()[0] + 1000000
+    )
 
     response = client.post(
         "/predict",
@@ -155,7 +150,7 @@ def test_predict_rejects_unknown_employee(client, api_key):
     assert response.json()["detail"] == "Employé introuvable."
 
 
-def test_predict_success(client, test_employee, api_key):
+def test_predict_success(client, test_employee, api_key, test_db):
     """Teste une prédiction réelle avec PostgreSQL et le modèle P4."""
 
     response = client.post(
@@ -196,11 +191,10 @@ def test_predict_success(client, test_employee, api_key):
         assert factor["impact"] in ["positive", "negative"]
         assert isinstance(factor["contribution"], (int, float))
 
-    db = SessionLocal()
     prediction_output = None
 
     try:
-        prediction_output = db.execute(
+        prediction_output = test_db.execute(
             select(PredictionOutput).where(
                 PredictionOutput.id == result["prediction_id"]
             )
@@ -209,7 +203,7 @@ def test_predict_success(client, test_employee, api_key):
         assert prediction_output is not None
         assert prediction_output.prediction in ["Oui", "Non"]
 
-        prediction_input = db.execute(
+        prediction_input = test_db.execute(
             select(PredictionInput).where(
                 PredictionInput.id == prediction_output.prediction_input_id
             )
@@ -232,34 +226,29 @@ def test_predict_success(client, test_employee, api_key):
     finally:
         # Suppression dans l'ordre des dépendances de clés étrangères.
         if prediction_output is not None:
-            db.execute(
+            test_db.execute(
                 delete(PredictionOutput).where(
                     PredictionOutput.id == result["prediction_id"]
                 )
             )
 
-            db.execute(
+            test_db.execute(
                 delete(PredictionInput).where(
                     PredictionInput.id == prediction_output.prediction_input_id
                 )
             )
 
-            db.commit()
+            test_db.commit()
 
-        db.close()
 
-def test_predict_handles_unexpected_error(client, test_employee, api_key, monkeypatch):
-    from src import main
-
+def test_predict_handles_unexpected_error(
+    client,
+    test_employee,
+    api_key,
+    monkeypatch,
+):
     def fake_transform(*args, **kwargs):
         raise RuntimeError("Erreur simulée pour le test.")
-
-    monkeypatch.setattr(
-        main,
-        "preprocessor",
-        None,
-        raising=False,
-    ) if False else None
 
     monkeypatch.setattr(
         client.app.state.preprocessor,
@@ -277,6 +266,7 @@ def test_predict_handles_unexpected_error(client, test_employee, api_key, monkey
     assert response.json()["detail"] == (
         "Une erreur interne est survenue lors de la prédiction."
     )
+
 
 def test_lifespan_loads_artifacts_only_once(monkeypatch):
     from src import main
