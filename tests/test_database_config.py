@@ -37,3 +37,29 @@ def test_database_url_missing_is_covered(monkeypatch):
         match="DATABASE_URL não encontrada"
     ):
         importlib.reload(database)
+
+def test_get_db_creates_and_closes_session():
+    """Vérifie la création et la fermeture de la session DB."""
+
+    from unittest.mock import MagicMock, patch
+
+    from src.database import get_db
+
+    mock_session = MagicMock()
+
+    with patch(
+        "src.database.SessionLocal",
+        return_value=mock_session,
+    ):
+        db_generator = get_db()
+
+        db = next(db_generator)
+
+        assert db is mock_session
+
+        try:
+            next(db_generator)
+        except StopIteration:
+            pass
+
+        mock_session.close.assert_called_once()
